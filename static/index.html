@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureBank - Online Banking System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="bg-background text-foreground">
+    <!-- Main App Container -->
+    <div id="app">
+        <!-- Login/Register Screen -->
+        <div id="auth-screen" class="min-h-screen flex items-center justify-center px-4 py-12">
+            <div class="w-full max-w-md">
+                <!-- Logo -->
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center gap-2 mb-2">
+                        <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                            <i class="fas fa-shield-alt text-primary-foreground text-xl"></i>
+                        </div>
+                        <h1 class="text-3xl font-bold text-balance">SecureBank</h1>
+                    </div>
+                    <p class="text-muted-foreground">Secure Online Banking System</p>
+                </div>
+
+                <!-- Auth Tabs -->
+                <div class="bg-card border border-border rounded-2xl shadow-lg overflow-hidden">
+                    <div class="flex border-b border-border">
+                        <button id="login-tab" class="flex-1 py-4 text-sm font-medium transition-colors auth-tab active">
+                            Sign In
+                        </button>
+                        <button id="register-tab" class="flex-1 py-4 text-sm font-medium transition-colors auth-tab">
+                            Register
+                        </button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <div id="login-form" class="p-8">
+                        <form id="login-form-element" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Email</label>
+                                <input type="email" name="email" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Password</label>
+                                <input type="password" name="password" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div id="login-error" class="hidden text-sm text-destructive"></div>
+                            <button type="submit" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                                Sign In
+                            </button>
+                        </form>
+                        <p class="mt-4 text-sm text-muted-foreground text-center">
+                            Default admin: <span class="font-mono text-foreground">admin@bank.com</span> / <span class="font-mono text-foreground">Admin@123</span>
+                        </p>
+                    </div>
+
+                    <!-- Register Form -->
+                    <div id="register-form" class="p-8 hidden">
+                        <form id="register-form-element" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Full Name</label>
+                                <input type="text" name="full_name" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Email</label>
+                                <input type="email" name="email" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Phone</label>
+                                <input type="tel" name="phone" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Password</label>
+                                <input type="password" name="password" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    Min 8 chars, uppercase, lowercase, number, special char
+                                </p>
+                            </div>
+                            <div id="register-error" class="hidden text-sm text-destructive"></div>
+                            <button type="submit" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                                Create Account
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard (Hidden by default) -->
+        <div id="dashboard-screen" class="hidden min-h-screen">
+            <!-- Top Navigation -->
+            <nav class="bg-card border-b border-border sticky top-0 z-50">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                                <i class="fas fa-shield-alt text-primary-foreground"></i>
+                            </div>
+                            <span class="text-xl font-bold">SecureBank</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span id="user-name" class="text-sm font-medium"></span>
+                            <span id="user-role" class="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary"></span>
+                            <button id="logout-btn" class="text-sm text-muted-foreground hover:text-foreground">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <!-- Role-based Navigation -->
+                <div class="mb-8 flex gap-2 border-b border-border overflow-x-auto">
+                    <button class="nav-btn active px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="dashboard">
+                        <i class="fas fa-home mr-2"></i>Dashboard
+                    </button>
+                    <button class="nav-btn customer-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="accounts">
+                        <i class="fas fa-wallet mr-2"></i>My Accounts
+                    </button>
+                    <button class="nav-btn customer-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="transfer">
+                        <i class="fas fa-exchange-alt mr-2"></i>Transfer
+                    </button>
+                    <button class="nav-btn customer-only support-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="support">
+                        <i class="fas fa-headset mr-2"></i>Support
+                    </button>
+                    <button class="nav-btn admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="admin-users">
+                        <i class="fas fa-users-cog mr-2"></i>Users
+                    </button>
+                    <button class="nav-btn admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="admin-accounts">
+                        <i class="fas fa-university mr-2"></i>All Accounts
+                    </button>
+                    <button class="nav-btn auditor-only admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="audit">
+                        <i class="fas fa-clipboard-list mr-2"></i>Audit Logs
+                    </button>
+                </div>
+
+                <!-- View Containers -->
+                <div id="view-container">
+                    <!-- Views will be dynamically loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Password Modal -->
+        <div id="change-password-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+            <div class="bg-card rounded-2xl p-8 max-w-md w-full shadow-2xl">
+                <h2 class="text-2xl font-bold mb-4">Change Password</h2>
+                <p class="text-sm text-muted-foreground mb-6">Please change your password on first login</p>
+                <form id="change-password-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Current Password</label>
+                        <input type="password" name="current_password" required
+                            class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">New Password</label>
+                        <input type="password" name="new_password" required
+                            class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div id="change-password-error" class="hidden text-sm text-destructive"></div>
+                    <button type="submit" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        Change Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
