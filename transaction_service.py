@@ -234,8 +234,17 @@ def fetch_accounts_for_user(current_user):
                 (current_user["user_id"],),
             )
 
+
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        accounts = [dict(row) for row in rows]
+
+        # Make sure every account has recent_transactions list
+        for acc in accounts:
+            if "recent_transactions" not in acc:
+                acc["recent_transactions"] = []
+
+        return accounts
+
 
     finally:
         cursor.close()
@@ -644,7 +653,8 @@ def external_transfer():
     try:
         data = request.get_json() or {}
         from_account_id = int(data.get("from_account_id"))
-        target_account_number = str(data.get("target_account_number"))
+        target_account_number = str(data.get("to_account_number") or "").strip()
+
         amount = float(data.get("amount", 0))
         description = data.get("description", "External transfer")
 

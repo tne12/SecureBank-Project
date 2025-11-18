@@ -1,7 +1,7 @@
 // API Base URLs (updated for SQLite setup)
 const API_AUTH = "http://localhost:5001/api/auth"
 const API_ACCOUNTS = "http://localhost:5002/api/accounts"
-const API_TRANSACTIONS = "http://localhost:5002/api/transactions"
+const API_TRANSACTIONS = "http://localhost:5002/api/transfers"
 const API_ADMIN = "http://localhost:5003/api/admin"
 const API_SUPPORT = "http://localhost:5003/api/support"
 
@@ -9,6 +9,19 @@ const API_SUPPORT = "http://localhost:5003/api/support"
 // Global state
 let currentUser = null
 let authToken = null
+
+function normalizeAccountsResponse(accountsData) {
+  if (Array.isArray(accountsData)) {
+    // Backend returns pure array
+    return accountsData
+  }
+  if (accountsData && Array.isArray(accountsData.accounts)) {
+    // Backend returns { accounts: [...] }
+    return accountsData.accounts
+  }
+  return []
+}
+
 
 // Utility functions
 function showError(elementId, message) {
@@ -235,7 +248,8 @@ async function loadView(viewName) {
 async function loadDashboardView(container) {
   try {
     const accountsData = await apiCall(`${API_ACCOUNTS}/my-accounts`)
-    const accounts = accountsData.accounts
+    const accounts = normalizeAccountsResponse(accountsData)
+
 
     const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0)
 
@@ -283,6 +297,8 @@ async function loadDashboardView(container) {
                                         ? `
                                         <div class="space-y-2">
                                             ${account.recent_transactions
+
+
                                               .slice(0, 3)
                                               .map(
                                                 (t) => `
@@ -317,7 +333,7 @@ async function loadDashboardView(container) {
 async function loadAccountsView(container) {
   try {
     const accountsData = await apiCall(`${API_ACCOUNTS}/my-accounts`)
-    const accounts = accountsData.accounts
+    const accounts = normalizeAccountsResponse(accountsData)
 
     container.innerHTML = `
             <div class="space-y-6">
@@ -348,6 +364,8 @@ async function loadAccountsView(container) {
                                     ? `
                                     <div class="space-y-2">
                                         ${account.recent_transactions
+
+
                                           .map(
                                             (t) => `
                                             <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
@@ -436,7 +454,10 @@ window.showCreateAccountModal = () => {
 async function loadTransferView(container) {
   try {
     const accountsData = await apiCall(`${API_ACCOUNTS}/my-accounts`)
-    const accounts = accountsData.accounts.filter((a) => a.status === "active")
+    const accounts = normalizeAccountsResponse(accountsData).filter(
+      (a) => a.status === "active",
+    )
+
 
     container.innerHTML = `
             <div class="space-y-6">
@@ -522,10 +543,11 @@ async function loadTransferView(container) {
       const data = Object.fromEntries(formData)
 
       try {
-        await apiCall(`${API_TRANSACTIONS}/internal-transfer`, {
+        await apiCall(`${API_TRANSACTIONS}/internal`, {
           method: "POST",
           body: JSON.stringify(data),
         })
+
 
         showSuccess("Transfer completed successfully!")
         e.target.reset()
@@ -542,7 +564,7 @@ async function loadTransferView(container) {
       const data = Object.fromEntries(formData)
 
       try {
-        await apiCall(`${API_TRANSACTIONS}/external-transfer`, {
+        await apiCall(`${API_TRANSACTIONS}/external`, {
           method: "POST",
           body: JSON.stringify(data),
         })
@@ -923,8 +945,9 @@ window.deleteUser = async (userId) => {
 // Admin Accounts View
 async function loadAdminAccountsView(container) {
   try {
-    const accountsData = await apiCall(`${API_ACCOUNTS}/all`)
-    const accounts = accountsData.accounts
+    const accountsData = await apiCall(`${API_ACCOUNTS}`)
+    const accounts = normalizeAccountsResponse(accountsData)
+
 
     container.innerHTML = `
             <div class="space-y-6">

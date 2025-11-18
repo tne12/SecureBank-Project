@@ -337,6 +337,77 @@ def validate_token():
     except jwt.InvalidTokenError:
         return jsonify({'valid': False, 'error': 'Invalid token'}), 401
 
+@app.route('/api/auth/change-password', methods=['POST'])
+def change_password():
+    """Change password for the currently logged-in user (first login flow)."""
+    try:
+        # 1) Get and decode JWT from Authorization header
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({'error': 'Missing token'}), 401
+
+        if token.startswith('Bearer '):
+            token = token[7:]
+
+        try:
+            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+
+        # IMPORTANT: the login route sets "user_id", not "id"
+        user_id = payload.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Invalid token payload'}), 400
+
+        # 2) Read current & new password from body
+        data = request.get_json() or {}
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+
+        if not current_password or not new_password:
+            return jsonify({'error': 'Current and new password are required'}), 400
+
+        # 3) Check password policy for the new password
+        is_valid, message = validate_password(new_password)
+        if not is_valid:
+            return jsonify({'error': message}), 400
+
+        # 4) Load user and verify current password
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+
+        if not bcrypt.check_password_hash(row['password_hash'], current_password):
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Current password is incorrect'}), 400
+
+        # 5) Hash new password and update DB, also clear first-login flag
+        new_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        cursor.execute(
+            "UPDATE users SET password_hash = ?, is_first_login = 0 WHERE id = ?",
+            (new_hash, user_id),
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'message': 'Password changed successfully'}), 200
+
+    except Exception as e:
+        # Helpful while you’re developing
+        return jsonify({'error': str(e)}), 500
+
+
 
 @app.route('/api/rbac/check', methods=['POST'])
 def check_permission():
