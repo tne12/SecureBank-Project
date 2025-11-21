@@ -261,6 +261,9 @@ def update_profile():
     if not current_user:
         return jsonify({'error': 'Unauthorized'}), 401
 
+    if not check_rbac_permission(current_user['role'], 'manage_own_profile'):
+        return jsonify({'error': 'Access denied'}), 403
+
     try:
         data = request.get_json()
         new_email = data.get('email')

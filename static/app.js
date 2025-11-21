@@ -4,7 +4,7 @@ const API_ACCOUNTS = "http://localhost:5002/api/accounts"
 const API_TRANSACTIONS = "http://localhost:5002/api/transfers"
 const API_ADMIN = "http://localhost:5003/api/admin"
 const API_SUPPORT = "http://localhost:5003/api/support"
-
+const API_ROOT = "http://localhost:5003/api"
 
 // Global state
 let currentUser = null
@@ -159,16 +159,21 @@ function showDashboard() {
   document.getElementById("auth-screen").classList.add("hidden")
   document.getElementById("dashboard-screen").classList.remove("hidden")
 
-  // Set user info
   document.getElementById("user-name").textContent = currentUser.full_name
   document.getElementById("user-role").textContent = currentUser.role.replace("_", " ").toUpperCase()
 
-  // Show/hide navigation based on role
-  updateNavigationVisibility()
+  const profileButton = document.getElementById("profile-button")
+  if (profileButton) {
+    profileButton.onclick = () => {
+      document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"))
+      loadView("profile")
+    }
+  }
 
-  // Load default view
+  updateNavigationVisibility()
   loadView("dashboard")
 }
+
 
 function updateNavigationVisibility() {
   const role = currentUser.role
@@ -241,6 +246,9 @@ async function loadView(viewName) {
     case "audit":
       await loadAuditView(container)
       break
+    case "profile":                             
+      await loadProfileView(container)
+      break
   }
 }
 
@@ -279,8 +287,8 @@ async function loadDashboardView(container) {
                     <h3 class="text-xl font-semibold mb-4">Your Accounts</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${accounts
-                          .map(
-                            (account) => `
+        .map(
+          (account) => `
                             <div class="account-card rounded-xl p-6">
                                 <div class="flex justify-between items-start mb-4">
                                     <div>
@@ -292,16 +300,15 @@ async function loadDashboardView(container) {
                                 <div class="text-2xl font-bold mb-4">$${account.balance.toFixed(2)}</div>
                                 <div class="border-t border-border pt-4">
                                     <div class="text-sm text-muted-foreground mb-2">Recent Transactions</div>
-                                    ${
-                                      account.recent_transactions.length > 0
-                                        ? `
+                                    ${account.recent_transactions.length > 0
+              ? `
                                         <div class="space-y-2">
                                             ${account.recent_transactions
 
 
-                                              .slice(0, 3)
-                                              .map(
-                                                (t) => `
+                .slice(0, 3)
+                .map(
+                  (t) => `
                                                 <div class="flex justify-between text-sm">
                                                     <span>${t.description || t.type}</span>
                                                     <span class="${t.receiver_account_id === account.id ? "text-primary" : "text-muted-foreground"}">
@@ -309,17 +316,17 @@ async function loadDashboardView(container) {
                                                     </span>
                                                 </div>
                                             `,
-                                              )
-                                              .join("")}
+                )
+                .join("")}
                                         </div>
                                     `
-                                        : '<div class="text-sm text-muted-foreground">No transactions yet</div>'
-                                    }
+              : '<div class="text-sm text-muted-foreground">No transactions yet</div>'
+            }
                                 </div>
                             </div>
                         `,
-                          )
-                          .join("")}
+        )
+        .join("")}
                     </div>
                 </div>
             </div>
@@ -346,8 +353,8 @@ async function loadAccountsView(container) {
                 
                 <div class="grid grid-cols-1 gap-4">
                     ${accounts
-                      .map(
-                        (account) => `
+        .map(
+          (account) => `
                         <div class="bg-card border border-border rounded-xl p-6">
                             <div class="flex justify-between items-start mb-4">
                                 <div>
@@ -359,15 +366,14 @@ async function loadAccountsView(container) {
                             <div class="text-3xl font-bold mb-6">$${account.balance.toFixed(2)}</div>
                             <div class="border-t border-border pt-4">
                                 <div class="text-sm font-medium mb-3">Recent Transactions</div>
-                                ${
-                                  account.recent_transactions.length > 0
-                                    ? `
+                                ${account.recent_transactions.length > 0
+              ? `
                                     <div class="space-y-2">
                                         ${account.recent_transactions
 
 
-                                          .map(
-                                            (t) => `
+                .map(
+                  (t) => `
                                             <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
                                                 <div>
                                                     <div class="text-sm font-medium">${t.description || t.type}</div>
@@ -378,17 +384,17 @@ async function loadAccountsView(container) {
                                                 </div>
                                             </div>
                                         `,
-                                          )
-                                          .join("")}
+                )
+                .join("")}
                                     </div>
                                 `
-                                    : '<div class="text-sm text-muted-foreground">No transactions yet</div>'
-                                }
+              : '<div class="text-sm text-muted-foreground">No transactions yet</div>'
+            }
                             </div>
                         </div>
                     `,
-                      )
-                      .join("")}
+        )
+        .join("")}
                 </div>
             </div>
         `
@@ -593,23 +599,15 @@ async function loadSupportView(container) {
             <div class="space-y-6">
                 <div class="flex justify-between items-center">
                     <h2 class="text-2xl font-bold">Support Tickets</h2>
-                    ${
-                      !isSupport
-                        ? `
+                    ${!isSupport ? `
                         <button onclick="showCreateTicketModal()" class="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90">
                             <i class="fas fa-plus mr-2"></i>New Ticket
                         </button>
-                    `
-                        : ""
-                    }
+                    `: ""}
                 </div>
                 
                 <div class="space-y-4">
-                    ${
-                      tickets.length > 0
-                        ? tickets
-                            .map(
-                              (ticket) => `
+                    ${tickets.length > 0 ? tickets.map((ticket) => `
                         <div class="bg-card border border-border rounded-xl p-6">
                             <div class="flex justify-between items-start mb-4">
                                 <div>
@@ -621,15 +619,11 @@ async function loadSupportView(container) {
                             </div>
                             <p class="text-sm text-muted-foreground mb-4">${ticket.description}</p>
                             
-                            ${
-                              ticket.notes.length > 0
-                                ? `
+                            ${ticket.notes.length > 0 ? `
                                 <div class="border-t border-border pt-4 mb-4">
                                     <div class="text-sm font-medium mb-2">Notes</div>
                                     <div class="space-y-2">
-                                        ${ticket.notes
-                                          .map(
-                                            (note) => `
+                                        ${ticket.notes.map((note) => `
                                             <div class="bg-background rounded-lg p-3">
                                                 <div class="flex justify-between text-xs text-muted-foreground mb-1">
                                                     <span>${note.author} (${note.author_role})</span>
@@ -637,22 +631,17 @@ async function loadSupportView(container) {
                                                 </div>
                                                 <div class="text-sm">${note.note}</div>
                                             </div>
-                                        `,
-                                          )
-                                          .join("")}
+                                        `,).join("")}
                                     </div>
                                 </div>
-                            `
-                                : ""
-                            }
+                            `: ""}
                             
                             <div class="flex gap-3">
                                 <button onclick="showAddNoteModal(${ticket.id})" class="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:opacity-90">
                                     Add Note
                                 </button>
-                                ${
-                                  isSupport
-                                    ? `
+                                ${isSupport
+        ? `
                                     <select onchange="updateTicketStatus(${ticket.id}, this.value)" class="flex-1 px-4 py-2 bg-background border border-input rounded-lg">
                                         <option value="">Change Status...</option>
                                         <option value="open">Open</option>
@@ -660,15 +649,15 @@ async function loadSupportView(container) {
                                         <option value="resolved">Resolved</option>
                                     </select>
                                 `
-                                    : ""
-                                }
+        : ""
+      }
                             </div>
                         </div>
                     `,
-                            )
-                            .join("")
-                        : '<div class="text-center text-muted-foreground py-8">No tickets found</div>'
-                    }
+    )
+        .join("")
+        : '<div class="text-center text-muted-foreground py-8">No tickets found</div>'
+      }
                 </div>
             </div>
         `
@@ -797,6 +786,8 @@ async function loadAdminUsersView(container) {
     const usersData = await apiCall(`${API_ADMIN}/users`)
     const users = usersData.users
 
+    window.adminUsers = users
+
     container.innerHTML = `
             <div class="space-y-6">
                 <div class="flex justify-between items-center">
@@ -819,9 +810,7 @@ async function loadAdminUsersView(container) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${users
-                              .map(
-                                (user) => `
+                            ${users.map((user) => `
                                 <tr>
                                     <td>${user.full_name}</td>
                                     <td>${user.email}</td>
@@ -832,20 +821,14 @@ async function loadAdminUsersView(container) {
                                         <button onclick="showEditUserModal(${user.id})" class="text-primary hover:underline mr-3">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        ${
-                                          user.id !== currentUser.user_id
-                                            ? `
+                                        ${user.id !== currentUser.user_id ? `
                                             <button onclick="deleteUser(${user.id})" class="text-destructive hover:underline">
                                                 <i class="fas fa-trash"></i>
                                             </button>
-                                        `
-                                            : ""
-                                        }
+                                        `: ""}
                                     </td>
                                 </tr>
-                            `,
-                              )
-                              .join("")}
+                            `,).join("")}
                         </tbody>
                     </table>
                 </div>
@@ -926,6 +909,101 @@ window.showCreateUserModal = () => {
   })
 }
 
+window.showEditUserModal = (userId) => {
+  if (!window.adminUsers) return
+
+  const user = window.adminUsers.find((u) => u.id === userId)
+  if (!user) return
+
+  const modal = document.createElement("div")
+  modal.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4"
+  modal.innerHTML = `
+    <div class="bg-card rounded-2xl p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+      <h3 class="text-2xl font-bold mb-6">Edit User</h3>
+      <form id="edit-user-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">Full name</label>
+          <input
+            type="text"
+            value="${user.full_name}"
+            class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+            disabled
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2">Email</label>
+          <input
+            type="email"
+            value="${user.email}"
+            class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+            disabled
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2">Phone</label>
+          <input
+            type="tel"
+            value="${user.phone || ""}"
+            class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+            disabled
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2">Role</label>
+          <select
+            name="role"
+            class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+            required
+          >
+            <option value="customer" ${user.role === "customer" ? "selected" : ""}>Customer</option>
+            <option value="support_agent" ${user.role === "support_agent" ? "selected" : ""}>Support agent</option>
+            <option value="auditor" ${user.role === "auditor" ? "selected" : ""}>Auditor</option>
+            <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
+          </select>
+        </div>
+        <div class="flex gap-3">
+          <button
+            type="submit"
+            class="flex-1 bg-primary text-primary-foreground py-2 rounded-lg hover:opacity-90"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            id="cancel-edit-user"
+            class="flex-1 bg-secondary text-secondary-foreground py-2 rounded-lg hover:opacity-90"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  `
+  document.body.appendChild(modal)
+
+  document.getElementById("cancel-edit-user").addEventListener("click", () => modal.remove())
+
+  const form = document.getElementById("edit-user-form")
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const formData = new FormData(form)
+    const role = formData.get("role")
+
+    try {
+      await apiCall(`${API_ADMIN}/users/${userId}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      })
+
+      showSuccess("User role updated successfully")
+      modal.remove()
+      loadView("admin-users")
+    } catch (error) {
+      alert(error.message)
+    }
+  })
+}
+
 // Delete User
 window.deleteUser = async (userId) => {
   if (!confirm("Are you sure you want to delete this user?")) return
@@ -967,26 +1045,27 @@ async function loadAdminAccountsView(container) {
                         </thead>
                         <tbody>
                             ${accounts
-                              .map(
-                                (account) => `
-                                <tr>
+        .map((account) => {
+          const ownerName = account.owner_name || account.owner_email || "Unknown"
+          return `
+                                  <tr>
                                     <td class="font-mono">${account.account_number}</td>
                                     <td>${account.account_type}</td>
-                                    <td>${account.user.full_name}</td>
+                                    <td>${ownerName}</td>
                                     <td class="font-bold">$${account.balance.toFixed(2)}</td>
                                     <td><span class="status-badge status-${account.status}">${account.status}</span></td>
                                     <td>
-                                        <select onchange="updateAccountStatus(${account.id}, this.value)" class="px-3 py-1 bg-background border border-input rounded text-sm">
-                                            <option value="">Change Status...</option>
-                                            <option value="active">Active</option>
-                                            <option value="frozen">Frozen</option>
-                                            <option value="closed">Closed</option>
-                                        </select>
+                                      <select onchange="updateAccountStatus(${account.id}, this.value)" class="px-3 py-1 bg-background border border-input rounded text-sm">
+                                          <option value="">Change Status...</option>
+                                          <option value="active">Active</option>
+                                          <option value="frozen">Frozen</option>
+                                          <option value="closed">Closed</option>
+                                      </select>
                                     </td>
-                                </tr>
-                            `,
-                              )
-                              .join("")}
+                                  </tr>
+                                `
+        })
+        .join("")}
                         </tbody>
                     </table>
                 </div>
@@ -1014,10 +1093,184 @@ window.updateAccountStatus = async (accountId, status) => {
   }
 }
 
+async function loadProfileView(container) {
+  try {
+    const profileRes = await apiCall(`${API_ROOT}/profile`, { method: "GET" })
+    const profileUser = profileRes.user || currentUser
+
+    container.innerHTML = `
+      <div class="space-y-6">
+        <h2 class="text-2xl font-bold">My Profile</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Profile info -->
+          <div class="bg-card border border-border rounded-xl p-6">
+            <h3 class="text-lg font-semibold mb-4">Profile information</h3>
+            <form id="profile-form" class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium mb-1">Full name</label>
+                <input
+                  type="text"
+                  name="full_name"
+                  value="${profileUser.full_name || ""}"
+                  class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value="${profileUser.email || ""}"
+                  class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Password (to confirm changes)</label>
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Enter your current password"
+                  class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                class="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90"
+              >
+                Save changes
+              </button>
+            </form>
+          </div>
+
+          <!-- Change password -->
+          <div class="bg-card border border-border rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">Change password</h3>
+              <button
+                id="toggle-password-section"
+                type="button"
+                class="text-sm text-primary hover:underline"
+              >
+                Show
+              </button>
+            </div>
+            <form id="password-form" class="space-y-4 hidden">
+              <div>
+                <label class="block text-sm font-medium mb-1">Current password</label>
+                <input
+                  type="password"
+                  name="current_password"
+                  class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">New password</label>
+                <input
+                  type="password"
+                  name="new_password"
+                  class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Confirm new password</label>
+                <input
+                  type="password"
+                  name="confirm_new_password"
+                  class="w-full px-4 py-2 bg-background border border-input rounded-lg"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                class="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90"
+              >
+                Update password
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    `
+
+    // Handle profile info update using /api/profile (email + full_name).
+    // NOTE: backend's update_profile requires a "password" field, which we treat
+    // as "confirm your current password" so your password doesn't actually change.
+    const profileForm = document.getElementById("profile-form")
+    profileForm.addEventListener("submit", async (e) => {
+      e.preventDefault()
+      const formData = new FormData(profileForm)
+      const data = Object.fromEntries(formData)
+
+      try {
+        await apiCall(`${API_ROOT}/profile`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        })
+
+        // Update local currentUser and header
+        currentUser.full_name = data.full_name
+        currentUser.email = data.email
+        localStorage.setItem("currentUser", JSON.stringify(currentUser))
+        const nameEl = document.getElementById("user-name")
+        if (nameEl) nameEl.textContent = currentUser.full_name
+
+        showSuccess("Profile updated successfully")
+        profileForm.password.value = ""
+      } catch (error) {
+        alert(error.message)
+      }
+    })
+
+    // Toggle password section (conditional rendering)
+    const toggleBtn = document.getElementById("toggle-password-section")
+    const pwdForm = document.getElementById("password-form")
+    toggleBtn.addEventListener("click", () => {
+      const isHidden = pwdForm.classList.toggle("hidden")
+      toggleBtn.textContent = isHidden ? "Show" : "Hide"
+    })
+
+    // Change password via RBAC service /api/auth/change-password
+    pwdForm.addEventListener("submit", async (e) => {
+      e.preventDefault()
+      const fd = new FormData(pwdForm)
+      const current_password = fd.get("current_password")
+      const new_password = fd.get("new_password")
+      const confirm_new_password = fd.get("confirm_new_password")
+
+      if (new_password !== confirm_new_password) {
+        alert("New password and confirmation do not match")
+        return
+      }
+
+      try {
+        await apiCall(`${API_AUTH}/change-password`, {
+          method: "POST",
+          body: JSON.stringify({ current_password, new_password }),
+        })
+
+        showSuccess("Password changed successfully")
+        pwdForm.reset()
+        pwdForm.classList.add("hidden")
+        toggleBtn.textContent = "Show"
+      } catch (error) {
+        alert(error.message)
+      }
+    })
+  } catch (error) {
+    container.innerHTML = `<div class="text-destructive">Error loading profile: ${error.message}</div>`
+  }
+}
+
 // Audit Logs View
 async function loadAuditView(container) {
   try {
-    const logsData = await apiCall(`${API_ADMIN}/audit-logs`)
+    const logsData = await apiCall(`${API_ROOT}/audit/logs`)
     const logs = logsData.logs
 
     container.innerHTML = `
@@ -1057,9 +1310,7 @@ async function loadAuditView(container) {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${logs
-                                  .map(
-                                    (log) => `
+                                ${logs.map((log) => `
                                     <tr>
                                         <td class="text-sm">${new Date(log.created_at).toLocaleString()}</td>
                                         <td>${log.user_name || "System"}</td>
@@ -1067,20 +1318,19 @@ async function loadAuditView(container) {
                                         <td class="text-sm max-w-xs truncate">${log.details || "-"}</td>
                                         <td class="font-mono text-sm">${log.ip_address || "-"}</td>
                                         <td>
-                                            <span class="status-badge ${
-                                              log.severity === "critical"
-                                                ? "bg-destructive/10 text-destructive"
-                                                : log.severity === "warning"
-                                                  ? "bg-yellow-500/10 text-yellow-500"
-                                                  : "status-active"
-                                            }">
+                                            <span class="status-badge ${log.severity === "critical"
+        ? "bg-destructive/10 text-destructive"
+        : log.severity === "warning"
+          ? "bg-yellow-500/10 text-yellow-500"
+          : "status-active"
+      }">
                                                 ${log.severity}
                                             </span>
                                         </td>
                                     </tr>
                                 `,
-                                  )
-                                  .join("")}
+    )
+        .join("")}
                             </tbody>
                         </table>
                     </div>
@@ -1092,7 +1342,6 @@ async function loadAuditView(container) {
   }
 }
 
-// Check for existing session on page load
 window.addEventListener("DOMContentLoaded", () => {
   const savedToken = localStorage.getItem("authToken")
   const savedUser = localStorage.getItem("currentUser")
@@ -1102,7 +1351,10 @@ window.addEventListener("DOMContentLoaded", () => {
     currentUser = JSON.parse(savedUser)
 
     // Validate token
-    apiCall(`${API_AUTH}/validate`)
+    apiCall(`${API_AUTH}/validate`, {
+      method: "POST",          
+      body: JSON.stringify({}) 
+    })
       .then(() => {
         showDashboard()
       })
