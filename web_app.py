@@ -32,6 +32,42 @@ def get_db_connection():
 RBAC_AUTH_URL = os.getenv('RBAC_AUTH_URL', 'http://localhost:5001')
 TRANSACTION_URL = os.getenv('TRANSACTION_URL', 'http://localhost:5002')
 
+AUDIT_LOG_URL = os.getenv(
+    'AUDIT_LOG_URL',
+    'http://localhost:5003/api/audit/log'
+)
+
+
+def send_audit_log(
+    user_id=None,
+    action=None,
+    resource_type=None,
+    resource_id=None,
+    details=None,
+    severity="info",
+):
+    """
+    Fire-and-forget helper to send audit logs to the audit endpoint.
+    Used for admin operations inside this service.
+    """
+    if not action:
+        return
+
+    payload = {
+        "user_id": user_id,
+        "action": action,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "details": details,
+        "severity": severity,
+    }
+
+    try:
+        requests.post(AUDIT_LOG_URL, json=payload, timeout=3)
+    except Exception:
+        # Never break admin flows because of logging
+        pass
+
 
 def verify_token(token):
     """Verify token via RBAC service"""
@@ -401,6 +437,19 @@ def admin_create_user():
         cursor.close()
         conn.close()
 
+        # --- Audit: admin created a user ---
+        send_audit_log(
+            user_id=current_user['user_id'],
+            action="admin_create_user",
+            resource_type="user",
+            resource_id=user_id,
+            details=(
+                f"Admin {current_user.get('email', 'unknown')} "
+                f"created user {email} with role={role}"
+            ),
+            severity="info",
+        )
+
         return jsonify({
             'message': 'User created successfully',
             'user_id': user_id
@@ -438,12 +487,46 @@ def admin_update_user_role(user_id):
         cursor = conn.cursor()
 
         cursor.execute(
+            "SELECT role, email FROM users WHERE id = ?",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'User not found'}), 404
+
+        old_role = row['role']
+        target_email = row['email']
+
+        # No-op if role is the same
+        if old_role == new_role:
+            cursor.close()
+            conn.close()
+            return jsonify({'message': 'User role unchanged (same role)'})
+        
+        cursor.execute(
             "UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (new_role, user_id)
         )
         conn.commit()
         cursor.close()
         conn.close()
+
+        # --- Audit: admin changed user role ---
+        send_audit_log(
+            user_id=current_user['user_id'],
+            action="admin_change_user_role",
+            resource_type="user",
+            resource_id=user_id,
+            details=(
+                f"Admin {current_user.get('email', 'unknown')} "
+                f"changed role for user {target_email} "
+                f"from {old_role} to {new_role}"
+            ),
+            severity="warning", 
+        )
 
         return jsonify({'message': 'User role updated successfully'}), 200
 

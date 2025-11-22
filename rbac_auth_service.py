@@ -12,6 +12,8 @@ import redis
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
+import requests   
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
@@ -43,6 +45,11 @@ except Exception as e:
 
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_LOCKOUT_MINUTES = 15
+
+AUDIT_LOG_URL = os.getenv(
+    'AUDIT_LOG_URL',
+    'http://localhost:5003/api/audit/log'
+)
 
 # RBAC Permission Matrix
 PERMISSION_MATRIX = {
@@ -107,6 +114,35 @@ PERMISSION_MATRIX = {
         'view_audit_logs': True,
     }
 }
+
+def create_audit_log(
+    user_id=None,
+    action=None,
+    resource_type=None,
+    resource_id=None,
+    details=None,
+    severity="info",
+):
+    """
+    Send audit log entry to Web App service.
+    Non-blocking: failures are ignored so auth never breaks because of logging.
+    """
+    if not action:
+        return
+
+    payload = {
+        "user_id": user_id,
+        "action": action,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "details": details,
+        "severity": severity,
+    }
+
+    try:
+        requests.post(AUDIT_LOG_URL, json=payload, timeout=3)
+    except Exception:
+        pass
 
 # Utility functions
 def validate_password(password):
@@ -240,6 +276,15 @@ def register():
         cursor.close()
         conn.close()
 
+        create_audit_log(
+            user_id=user_id,
+            action="user_registered",
+            resource_type="user",
+            resource_id=user_id,
+            details=f"New customer registered with email {email}",
+            severity="info",
+        )
+
         return jsonify({
             'message': 'User registered successfully',
             'user_id': user_id
@@ -266,6 +311,17 @@ def login():
         allowed, attempts_or_ttl = check_rate_limit(email, ip_address)
         if not allowed:
             minutes_left = max(attempts_or_ttl // 60, 0)
+
+            create_audit_log(
+                user_id=None,
+                action="login_rate_limited",
+                resource_type="auth",
+                resource_id=None,
+                details=f"Rate limit triggered for email={email} from IP={ip_address}. "
+                        f"Lockout ~{minutes_left} minutes remaining.",
+                severity="warning",
+            )
+
             return jsonify({
                 'error': f'Too many login attempts. Account locked for {minutes_left} more minutes.'
             }), 429
@@ -281,14 +337,35 @@ def login():
         user = cursor.fetchone()
 
         if not user or not bcrypt.check_password_hash(user['password_hash'], password):
+            # --- Audit: login failed ---
+            create_audit_log(
+                user_id=user['id'] if user else None,
+                action="login_failed",
+                resource_type="auth",
+                resource_id=None,
+                details=f"Failed login for email={email} from IP={ip_address}",
+                severity="warning",
+            )
+
             cursor.close()
             conn.close()
             return jsonify({'error': 'Invalid credentials'}), 401
 
-        reset_rate_limit(email, ip_address)
 
+        reset_rate_limit(email, ip_address)
+        
         cursor.close()
         conn.close()
+
+        # --- Audit: login success ---
+        create_audit_log(
+            user_id=user['id'],
+            action="login_success",
+            resource_type="auth",
+            resource_id=None,
+            details=f"User {user['email']} logged in successfully from IP={ip_address}",
+            severity="info",
+        )
 
         # Generate JWT token
         token = jwt.encode({
@@ -372,6 +449,15 @@ def change_password():
         # 3) Check password policy for the new password
         is_valid, message = validate_password(new_password)
         if not is_valid:
+            # --- Audit: password change failed due to weak new password ---
+            create_audit_log(
+                user_id=user_id,
+                action="password_change_failed",
+                resource_type="user",
+                resource_id=user_id,
+                details=f"Password change failed: new password did not meet security policy ({message})",
+                severity="warning",
+            )
             return jsonify({'error': message}), 400
 
         # 4) Load user and verify current password
@@ -389,6 +475,15 @@ def change_password():
         if not bcrypt.check_password_hash(row['password_hash'], current_password):
             cursor.close()
             conn.close()
+            # --- Audit: failed password change attempt ---
+            create_audit_log(
+                user_id=user_id,
+                action="password_change_failed",
+                resource_type="user",
+                resource_id=user_id,
+                details="Password change failed: incorrect CURRENT password entered",
+                severity="warning",  
+            )
             return jsonify({'error': 'Current password is incorrect'}), 400
 
         # 5) Hash new password and update DB, also clear first-login flag
@@ -400,6 +495,16 @@ def change_password():
         conn.commit()
         cursor.close()
         conn.close()
+
+        # --- Audit: password changed ---
+        create_audit_log(
+            user_id=user_id,
+            action="password_changed",
+            resource_type="user",
+            resource_id=user_id,
+            details="User changed password via /api/auth/change-password",
+            severity="info",
+        )
 
         return jsonify({'message': 'Password changed successfully'}), 200
 

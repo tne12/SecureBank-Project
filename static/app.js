@@ -6,6 +6,28 @@ const API_ADMIN = "http://localhost:5003/api/admin"
 const API_SUPPORT = "http://localhost:5003/api/support"
 const API_ROOT = "http://localhost:5003/api"
 
+// Frontend RBAC: which views each role is allowed to open
+const ROLE_VIEW_PERMISSIONS = {
+  customer: new Set(["dashboard", "accounts", "transfer", "support", "profile"]),
+  support_agent: new Set(["dashboard", "support", "accounts", "profile"]),
+  auditor: new Set(["dashboard", "audit", "accounts", "profile"]),
+  admin: new Set([
+    "dashboard",
+    "accounts",
+    "transfer",
+    "support",
+    "admin-users",
+    "admin-accounts",
+    "audit",
+    "profile",
+  ]),
+}
+
+function canAccessView(role, viewName) {
+  const allowed = ROLE_VIEW_PERMISSIONS[role]
+  return !!(allowed && allowed.has(viewName))
+}
+
 // Global state
 let currentUser = null
 let authToken = null
@@ -20,6 +42,47 @@ function normalizeAccountsResponse(accountsData) {
     return accountsData.accounts
   }
   return []
+}
+
+// ---- Security helpers ----
+
+// Basic HTML escaping to avoid XSS when inserting user-controlled text
+function escapeHtml(value) {
+  if (typeof value !== "string") return value
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+// Trim all string fields from a FormData into a plain object
+function sanitizeFormData(formData) {
+  const obj = {}
+  for (const [key, value] of formData.entries()) {
+    obj[key] = typeof value === "string" ? value.trim() : value
+  }
+  return obj
+}
+
+// Strong password: min 8, upper, lower, digit, special char
+const STRONG_PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+={[}\]|\\:;"'<>,.?/]).{8,}$/
+
+function validateStrongPassword(password) {
+  return STRONG_PASSWORD_REGEX.test(password)
+}
+
+function validatePhone(phone) {
+  if (!phone) return false
+  return /^\+?[0-9\s\-]{7,20}$/.test(phone)
+}
+
+function validateAmount(amountStr) {
+  const amount = Number(amountStr)
+  if (!Number.isFinite(amount)) return false
+  return amount > 0 && amount <= 1_000_000_000
 }
 
 
@@ -83,7 +146,7 @@ document.getElementById("register-tab").addEventListener("click", () => {
 document.getElementById("login-form-element").addEventListener("submit", async (e) => {
   e.preventDefault()
   const formData = new FormData(e.target)
-  const data = Object.fromEntries(formData)
+  const data = sanitizeFormData(formData)
 
   try {
     const response = await apiCall(`${API_AUTH}/login`, {
@@ -96,22 +159,37 @@ document.getElementById("login-form-element").addEventListener("submit", async (
     localStorage.setItem("authToken", authToken)
     localStorage.setItem("currentUser", JSON.stringify(currentUser))
 
-    // Check if first login
+    e.target.reset() // clear credentials from DOM
+
     if (currentUser.is_first_login) {
       showChangePasswordModal()
     } else {
       showDashboard()
     }
   } catch (error) {
-    showError("login-error", error.message)
+    showError("login-error", "Invalid credentials or account locked")
   }
 })
+
 
 // Register
 document.getElementById("register-form-element").addEventListener("submit", async (e) => {
   e.preventDefault()
   const formData = new FormData(e.target)
-  const data = Object.fromEntries(formData)
+  const data = sanitizeFormData(formData)
+
+  if (!validatePhone(data.phone)) {
+    showError("register-error", "Please enter a valid phone number")
+    return
+  }
+
+  if (!validateStrongPassword(data.password)) {
+    showError(
+      "register-error",
+      "Password must be at least 8 characters and include upper, lower, number and special character.",
+    )
+    return
+  }
 
   try {
     await apiCall(`${API_AUTH}/register`, {
@@ -127,6 +205,7 @@ document.getElementById("register-form-element").addEventListener("submit", asyn
   }
 })
 
+
 // Change Password Modal
 function showChangePasswordModal() {
   document.getElementById("change-password-modal").classList.remove("hidden")
@@ -135,7 +214,15 @@ function showChangePasswordModal() {
 document.getElementById("change-password-form").addEventListener("submit", async (e) => {
   e.preventDefault()
   const formData = new FormData(e.target)
-  const data = Object.fromEntries(formData)
+  const data = sanitizeFormData(formData)
+
+  if (!validateStrongPassword(data.new_password)) {
+    showError(
+      "change-password-error",
+      "New password must be at least 8 characters and include upper, lower, number and special character.",
+    )
+    return
+  }
 
   try {
     await apiCall(`${API_AUTH}/change-password`, {
@@ -146,6 +233,7 @@ document.getElementById("change-password-form").addEventListener("submit", async
     currentUser.is_first_login = false
     localStorage.setItem("currentUser", JSON.stringify(currentUser))
 
+    e.target.reset()
     document.getElementById("change-password-modal").classList.add("hidden")
     showSuccess("Password changed successfully!")
     showDashboard()
@@ -153,6 +241,7 @@ document.getElementById("change-password-form").addEventListener("submit", async
     showError("change-password-error", error.message)
   }
 })
+
 
 // Show Dashboard
 function showDashboard() {
@@ -224,6 +313,13 @@ document.getElementById("logout-btn").addEventListener("click", () => {
 async function loadView(viewName) {
   const container = document.getElementById("view-container")
 
+  // Frontend RBAC guard (backend still enforces the real control)
+  if (!canAccessView(currentUser.role, viewName)) {
+    container.innerHTML =
+      '<div class="text-destructive">You do not have permission to access this section.</div>'
+    return
+  }
+
   switch (viewName) {
     case "dashboard":
       await loadDashboardView(container)
@@ -246,7 +342,7 @@ async function loadView(viewName) {
     case "audit":
       await loadAuditView(container)
       break
-    case "profile":                             
+    case "profile":
       await loadProfileView(container)
       break
   }
@@ -264,7 +360,7 @@ async function loadDashboardView(container) {
     container.innerHTML = `
             <div class="space-y-6">
                 <div>
-                    <h2 class="text-3xl font-bold text-balance mb-2">Welcome back, ${currentUser.full_name}</h2>
+                    <h2 class="text-3xl font-bold text-balance mb-2">Welcome back, ${escapeHtml(currentUser.full_name)}</h2>
                     <p class="text-muted-foreground">Here's your account overview</p>
                 </div>
                 
@@ -292,10 +388,10 @@ async function loadDashboardView(container) {
                             <div class="account-card rounded-xl p-6">
                                 <div class="flex justify-between items-start mb-4">
                                     <div>
-                                        <div class="text-sm text-muted-foreground mb-1">${account.account_type.toUpperCase()}</div>
-                                        <div class="font-mono text-lg">${account.account_number}</div>
+                                        <div class="text-sm text-muted-foreground mb-1">${escapeHtml(account.account_type.toUpperCase())}</div>
+                                        <div class="font-mono text-lg">${escapeHtml(account.account_number)}</div>
                                     </div>
-                                    <span class="status-badge status-${account.status}">${account.status}</span>
+                                    <span class="status-badge status-${escapeHtml(account.status)}">${escapeHtml(account.status)}</span>
                                 </div>
                                 <div class="text-2xl font-bold mb-4">$${account.balance.toFixed(2)}</div>
                                 <div class="border-t border-border pt-4">
@@ -310,7 +406,7 @@ async function loadDashboardView(container) {
                 .map(
                   (t) => `
                                                 <div class="flex justify-between text-sm">
-                                                    <span>${t.description || t.type}</span>
+                                                    <span>${escapeHtml(t.description || t.type)}</span>
                                                     <span class="${t.receiver_account_id === account.id ? "text-primary" : "text-muted-foreground"}">
                                                         ${t.receiver_account_id === account.id ? "+" : "-"}$${t.amount.toFixed(2)}
                                                     </span>
@@ -332,7 +428,7 @@ async function loadDashboardView(container) {
             </div>
         `
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading dashboard: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading dashboard: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -358,10 +454,10 @@ async function loadAccountsView(container) {
                         <div class="bg-card border border-border rounded-xl p-6">
                             <div class="flex justify-between items-start mb-4">
                                 <div>
-                                    <div class="text-sm text-muted-foreground mb-1">${account.account_type.toUpperCase()} ACCOUNT</div>
-                                    <div class="font-mono text-xl">${account.account_number}</div>
+                                    <div class="text-sm text-muted-foreground mb-1">${escapeHtml(account.account_type.toUpperCase())} ACCOUNT</div>
+                                    <div class="font-mono text-xl">${escapeHtml(account.account_number)}</div>
                                 </div>
-                                <span class="status-badge status-${account.status}">${account.status}</span>
+                                <span class="status-badge status-${escapeHtml(account.status)}">${escapeHtml(account.status)}</span>
                             </div>
                             <div class="text-3xl font-bold mb-6">$${account.balance.toFixed(2)}</div>
                             <div class="border-t border-border pt-4">
@@ -376,7 +472,7 @@ async function loadAccountsView(container) {
                   (t) => `
                                             <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
                                                 <div>
-                                                    <div class="text-sm font-medium">${t.description || t.type}</div>
+                                                    <div class="text-sm font-medium">${escapeHtml(t.description || t.type)}</div>
                                                     <div class="text-xs text-muted-foreground">${new Date(t.created_at).toLocaleDateString()}</div>
                                                 </div>
                                                 <div class="text-sm font-medium ${t.receiver_account_id === account.id ? "text-primary" : "text-muted-foreground"}">
@@ -399,7 +495,7 @@ async function loadAccountsView(container) {
             </div>
         `
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading accounts: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading accounts: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -480,13 +576,13 @@ async function loadTransferView(container) {
                             <div>
                                 <label class="block text-sm font-medium mb-2">From Account</label>
                                 <select name="from_account_id" required class="w-full px-4 py-2 bg-background border border-input rounded-lg">
-                                    ${accounts.map((a) => `<option value="${a.id}">${a.account_number} ($${a.balance.toFixed(2)})</option>`).join("")}
+                                    ${accounts.map((a) => `<option value="${a.id}">${escapeHtml(a.account_number)} ($${a.balance.toFixed(2)})</option>`).join("")}
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium mb-2">To Account</label>
                                 <select name="to_account_id" required class="w-full px-4 py-2 bg-background border border-input rounded-lg">
-                                    ${accounts.map((a) => `<option value="${a.id}">${a.account_number} ($${a.balance.toFixed(2)})</option>`).join("")}
+                                    ${accounts.map((a) => `<option value="${a.id}">${escapeHtml(a.account_number)} ($${a.balance.toFixed(2)})</option>`).join("")}
                                 </select>
                             </div>
                             <div>
@@ -515,7 +611,7 @@ async function loadTransferView(container) {
                             <div>
                                 <label class="block text-sm font-medium mb-2">From Account</label>
                                 <select name="from_account_id" required class="w-full px-4 py-2 bg-background border border-input rounded-lg">
-                                    ${accounts.map((a) => `<option value="${a.id}">${a.account_number} ($${a.balance.toFixed(2)})</option>`).join("")}
+                                    ${accounts.map((a) => `<option value="${a.id}">${escapeHtml(a.account_number)} ($${a.balance.toFixed(2)})</option>`).join("")}
                                 </select>
                             </div>
                             <div>
@@ -546,14 +642,26 @@ async function loadTransferView(container) {
     document.getElementById("internal-transfer-form").addEventListener("submit", async (e) => {
       e.preventDefault()
       const formData = new FormData(e.target)
-      const data = Object.fromEntries(formData)
+      const data = sanitizeFormData(formData)
+
+      if (data.from_account_id === data.to_account_id) {
+        alert("Source and destination accounts must be different")
+        return
+      }
+
+      if (!validateAmount(data.amount)) {
+        alert("Please enter a valid transfer amount")
+        return
+      }
 
       try {
         await apiCall(`${API_TRANSACTIONS}/internal`, {
           method: "POST",
-          body: JSON.stringify(data),
+          body: JSON.stringify({
+            ...data,
+            amount: Number(data.amount),
+          }),
         })
-
 
         showSuccess("Transfer completed successfully!")
         e.target.reset()
@@ -567,12 +675,25 @@ async function loadTransferView(container) {
     document.getElementById("external-transfer-form").addEventListener("submit", async (e) => {
       e.preventDefault()
       const formData = new FormData(e.target)
-      const data = Object.fromEntries(formData)
+      const data = sanitizeFormData(formData)
+
+      if (!validateAmount(data.amount)) {
+        alert("Please enter a valid transfer amount")
+        return
+      }
+
+      if (!data.to_account_number || data.to_account_number.length < 6) {
+        alert("Please enter a valid target account number")
+        return
+      }
 
       try {
         await apiCall(`${API_TRANSACTIONS}/external`, {
           method: "POST",
-          body: JSON.stringify(data),
+          body: JSON.stringify({
+            ...data,
+            amount: Number(data.amount),
+          }),
         })
 
         showSuccess("Transfer completed successfully!")
@@ -583,7 +704,7 @@ async function loadTransferView(container) {
       }
     })
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading transfer: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading transfer: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -612,12 +733,12 @@ async function loadSupportView(container) {
                             <div class="flex justify-between items-start mb-4">
                                 <div>
                                     <div class="text-sm text-muted-foreground mb-1">Ticket #${ticket.ticket_number}</div>
-                                    <h3 class="text-lg font-semibold">${ticket.subject}</h3>
-                                    ${isSupport ? `<div class="text-sm text-muted-foreground mt-1">Customer: ${ticket.customer.full_name} (${ticket.customer.email})</div>` : ""}
+                                    <h3 class="text-lg font-semibold">${escapeHtml(ticket.subject)}</h3>
+                                    ${isSupport ? `<div class="text-sm text-muted-foreground mt-1">Customer: ${escapeHtml(ticket.customer.full_name)} (${escapeHtml(ticket.customer.email)})</div>` : ""}
                                 </div>
-                                <span class="status-badge status-${ticket.status}">${ticket.status.replace("_", " ")}</span>
+                                <span class="status-badge status-${escapeHtml(ticket.status)}">${escapeHtml(ticket.status.replace("_", " "))}</span>
                             </div>
-                            <p class="text-sm text-muted-foreground mb-4">${ticket.description}</p>
+                            <p class="text-sm text-muted-foreground mb-4">${escapeHtml(ticket.description)}</p>
                             
                             ${ticket.notes.length > 0 ? `
                                 <div class="border-t border-border pt-4 mb-4">
@@ -626,10 +747,10 @@ async function loadSupportView(container) {
                                         ${ticket.notes.map((note) => `
                                             <div class="bg-background rounded-lg p-3">
                                                 <div class="flex justify-between text-xs text-muted-foreground mb-1">
-                                                    <span>${note.author} (${note.author_role})</span>
+                                                    <span>${escapeHtml(note.author)} (${escapeHtml(note.author_role)})</span>
                                                     <span>${new Date(note.created_at).toLocaleString()}</span>
                                                 </div>
-                                                <div class="text-sm">${note.note}</div>
+                                                <div class="text-sm">${escapeHtml(note.note)}</div>
                                             </div>
                                         `,).join("")}
                                     </div>
@@ -662,7 +783,7 @@ async function loadSupportView(container) {
             </div>
         `
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading support tickets: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading support tickets: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -812,10 +933,10 @@ async function loadAdminUsersView(container) {
                         <tbody>
                             ${users.map((user) => `
                                 <tr>
-                                    <td>${user.full_name}</td>
-                                    <td>${user.email}</td>
-                                    <td>${user.phone}</td>
-                                    <td><span class="status-badge status-active">${user.role.replace("_", " ")}</span></td>
+                                    <td>${escapeHtml(user.full_name)}</td>
+                                    <td>${escapeHtml(user.email)}</td>
+                                    <td>${escapeHtml(user.phone || "")}</td>
+                                    <td><span class="status-badge status-active">${escapeHtml(user.role.replace("_", " "))}</span></td>
                                     <td>${new Date(user.created_at).toLocaleDateString()}</td>
                                     <td>
                                         <button onclick="showEditUserModal(${user.id})" class="text-primary hover:underline mr-3">
@@ -835,7 +956,7 @@ async function loadAdminUsersView(container) {
             </div>
         `
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading users: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading users: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -925,7 +1046,7 @@ window.showEditUserModal = (userId) => {
           <label class="block text-sm font-medium mb-2">Full name</label>
           <input
             type="text"
-            value="${user.full_name}"
+            value="${escapeHtml(user.full_name)}"
             class="w-full px-4 py-2 bg-background border border-input rounded-lg"
             disabled
           />
@@ -934,7 +1055,7 @@ window.showEditUserModal = (userId) => {
           <label class="block text-sm font-medium mb-2">Email</label>
           <input
             type="email"
-            value="${user.email}"
+            value="${escapeHtml(user.email)}"
             class="w-full px-4 py-2 bg-background border border-input rounded-lg"
             disabled
           />
@@ -943,7 +1064,7 @@ window.showEditUserModal = (userId) => {
           <label class="block text-sm font-medium mb-2">Phone</label>
           <input
             type="tel"
-            value="${user.phone || ""}"
+            value="${escapeHtml(user.phone || "")}"
             class="w-full px-4 py-2 bg-background border border-input rounded-lg"
             disabled
           />
@@ -1049,11 +1170,11 @@ async function loadAdminAccountsView(container) {
           const ownerName = account.owner_name || account.owner_email || "Unknown"
           return `
                                   <tr>
-                                    <td class="font-mono">${account.account_number}</td>
-                                    <td>${account.account_type}</td>
-                                    <td>${ownerName}</td>
+                                    <td class="font-mono">${escapeHtml(account.account_number)}</td>
+                                    <td>${escapeHtml(account.account_type)}</td>
+                                    <td>${escapeHtml(ownerName)}</td>
                                     <td class="font-bold">$${account.balance.toFixed(2)}</td>
-                                    <td><span class="status-badge status-${account.status}">${account.status}</span></td>
+                                    <td><span class="status-badge status-${escapeHtml(account.status)}">${escapeHtml(account.status)}</span></td>
                                     <td>
                                       <select onchange="updateAccountStatus(${account.id}, this.value)" class="px-3 py-1 bg-background border border-input rounded text-sm">
                                           <option value="">Change Status...</option>
@@ -1072,7 +1193,7 @@ async function loadAdminAccountsView(container) {
             </div>
         `
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading accounts: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading accounts: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -1112,7 +1233,7 @@ async function loadProfileView(container) {
                 <input
                   type="text"
                   name="full_name"
-                  value="${profileUser.full_name || ""}"
+                  value="${escapeHtml(profileUser.full_name || "")}"
                   class="w-full px-4 py-2 bg-background border border-input rounded-lg"
                   required
                 />
@@ -1122,7 +1243,7 @@ async function loadProfileView(container) {
                 <input
                   type="email"
                   name="email"
-                  value="${profileUser.email || ""}"
+                  value="${escapeHtml(profileUser.email || "")}"
                   class="w-full px-4 py-2 bg-background border border-input rounded-lg"
                   required
                 />
@@ -1205,7 +1326,12 @@ async function loadProfileView(container) {
     profileForm.addEventListener("submit", async (e) => {
       e.preventDefault()
       const formData = new FormData(profileForm)
-      const data = Object.fromEntries(formData)
+      const data = sanitizeFormData(formData)
+
+      if (!validatePhone(data.phone)) {
+        alert("Please enter a valid phone number")
+        return
+      }
 
       try {
         await apiCall(`${API_ROOT}/profile`, {
@@ -1213,7 +1339,6 @@ async function loadProfileView(container) {
           body: JSON.stringify(data),
         })
 
-        // Update local currentUser and header
         currentUser.full_name = data.full_name
         currentUser.email = data.email
         localStorage.setItem("currentUser", JSON.stringify(currentUser))
@@ -1227,6 +1352,7 @@ async function loadProfileView(container) {
       }
     })
 
+
     // Toggle password section (conditional rendering)
     const toggleBtn = document.getElementById("toggle-password-section")
     const pwdForm = document.getElementById("password-form")
@@ -1239,12 +1365,19 @@ async function loadProfileView(container) {
     pwdForm.addEventListener("submit", async (e) => {
       e.preventDefault()
       const fd = new FormData(pwdForm)
-      const current_password = fd.get("current_password")
-      const new_password = fd.get("new_password")
-      const confirm_new_password = fd.get("confirm_new_password")
+      const current_password = fd.get("current_password").trim()
+      const new_password = fd.get("new_password").trim()
+      const confirm_new_password = fd.get("confirm_new_password").trim()
 
       if (new_password !== confirm_new_password) {
         alert("New password and confirmation do not match")
+        return
+      }
+
+      if (!validateStrongPassword(new_password)) {
+        alert(
+          "New password must be at least 8 characters and include upper, lower, number and special character.",
+        )
         return
       }
 
@@ -1262,8 +1395,9 @@ async function loadProfileView(container) {
         alert(error.message)
       }
     })
+
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading profile: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading profile: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -1313,10 +1447,10 @@ async function loadAuditView(container) {
                                 ${logs.map((log) => `
                                     <tr>
                                         <td class="text-sm">${new Date(log.created_at).toLocaleString()}</td>
-                                        <td>${log.user_name || "System"}</td>
-                                        <td class="font-mono text-sm">${log.action}</td>
-                                        <td class="text-sm max-w-xs truncate">${log.details || "-"}</td>
-                                        <td class="font-mono text-sm">${log.ip_address || "-"}</td>
+                                        <td>${escapeHtml(log.user_name || "System")}</td>
+                                        <td class="font-mono text-sm">${escapeHtml(log.action)}</td>
+                                        <td class="text-sm max-w-xs truncate">${escapeHtml(log.details || "-")}</td>
+                                        <td class="font-mono text-sm">${escapeHtml(log.ip_address || "-")}</td>
                                         <td>
                                             <span class="status-badge ${log.severity === "critical"
         ? "bg-destructive/10 text-destructive"
@@ -1324,7 +1458,7 @@ async function loadAuditView(container) {
           ? "bg-yellow-500/10 text-yellow-500"
           : "status-active"
       }">
-                                                ${log.severity}
+                                                ${escapeHtml(log.severity)}
                                             </span>
                                         </td>
                                     </tr>
@@ -1338,7 +1472,7 @@ async function loadAuditView(container) {
             </div>
         `
   } catch (error) {
-    container.innerHTML = `<div class="text-destructive">Error loading audit logs: ${error.message}</div>`
+    container.innerHTML = `<div class="text-destructive">Error loading audit logs: ${escapeHtml(error.message)}</div>`
   }
 }
 
@@ -1352,8 +1486,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Validate token
     apiCall(`${API_AUTH}/validate`, {
-      method: "POST",          
-      body: JSON.stringify({}) 
+      method: "POST",
+      body: JSON.stringify({})
     })
       .then(() => {
         showDashboard()
