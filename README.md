@@ -1,320 +1,268 @@
-# Secure Online Banking System
+# **README for Secure Banking System Project**
 
-A production-ready, secure online banking system built with Flask, featuring comprehensive security measures and role-based access control.
+---
 
-## 🏗️ Architecture
+## **Project Overview**
 
-**3-Service Microservices Design** (as per project requirements):
+This project is a **Secure Banking System** designed to provide various banking features, including user authentication, role-based access control (RBAC), account management, transactions, audit logs, and support ticket management. The goal is to build a highly secure, scalable, and modular banking system capable of handling typical banking operations while ensuring top-tier security to prevent common vulnerabilities such as SQL injection, XSS, broken access control, and more.
 
-1. **RBAC/Auth Service** (Port 5001) - Authentication, JWT, RBAC, rate limiting
-2. **Transaction Service** (Port 5002) - Accounts, transfers, database operations
-3. **Web App** (Port 5003) - Frontend, admin panel, support, audit logs
+The system is divided into **multiple services** that work in tandem:
 
-## ✨ Features
+* **RBAC & Authentication Service**: Handles user authentication, JWT issuance, RBAC permissions, and password management.
+* **Transaction Service**: Manages accounts, transactions, balance management, and associated database operations.
+* **Web App Service**: Provides the frontend interface, supports the admin panel, manages audit logs, and serves static files.
 
-### Core Banking
-- ✅ User registration and authentication
-- ✅ Multiple account types (checking/savings)
-- ✅ Internal transfers (between own accounts)
-- ✅ External transfers (to other users)
-- ✅ Transaction history with filters
-- ✅ Account status management (active/frozen/closed)
+---
 
-### Security
-- ✅ JWT authentication with 8-hour expiration
-- ✅ Bcrypt password hashing (12 rounds)
-- ✅ Hard rate limiting (5 attempts per 15 min)
-- ✅ RBAC permission matrix enforcement
-- ✅ SQL injection prevention (parameterized queries)
-- ✅ XSS prevention (input sanitization)
-- ✅ Transaction atomicity with row-level locking
-- ✅ Idempotency keys (prevent duplicate transactions)
-- ✅ Suspicious activity detection
-- ✅ Comprehensive audit logging with hash chaining
+## **Technologies & Tools Used**
 
-### User Roles
-- **Customer** - Create accounts, make transfers, view own data
-- **Support Agent** - View all data, manage support tickets
-- **Auditor** - Read-only access to all data and audit logs
-- **Admin** - Full system access, user management, account freezing
+* **Flask**: Python web framework for backend services.
+* **SQLite**: Lightweight database for storing user data, accounts, transactions, and audit logs.
+* **Redis**: Used for rate limiting and idempotency keys to prevent duplicate requests.
+* **JWT**: JSON Web Tokens for secure user authentication.
+* **bcrypt**: Password hashing library to ensure secure password storage.
+* **CORS**: Cross-origin resource sharing, enabling the backend to be accessed by the frontend.
+* **Requests**: HTTP library for external communication between services (audit logs, token validation, etc.).
+* **HTML, CSS, JavaScript**: Frontend technologies used for building the UI (with enhanced security measures like escaping user input).
+* **Bootstrap / Tailwind**: Used for frontend design and responsive layouts.
+* **SHA-256**: Hashing used for ensuring the integrity of audit logs.
+* **Idempotency Key**: Mechanism to avoid duplicate transactions.
 
-### Admin Features
-- ✅ User management (create, update, delete)
-- ✅ Role assignment
-- ✅ Account freeze/unfreeze
-- ✅ Audit log viewing
-- ✅ First-login password change enforcement
+---
 
-### Support System
-- ✅ Customer ticket creation
-- ✅ Support agent ticket management
-- ✅ Ticket status tracking (open/in_progress/resolved)
-- ✅ Ticket notes and communication
+## **Key Features Implemented**
 
-### Audit & Compliance
-- ✅ All actions logged with IP and user agent
-- ✅ Failed login attempt tracking
-- ✅ Suspicious transaction flagging
-- ✅ Account status change logging
-- ✅ Admin operation tracking
-- ✅ Hash chain for tamper detection
+### **1. Authentication & Authorization**
 
-## 🚀 Quick Start
+* **User Registration**: Secure user sign-up with email, phone number, and strong password validation.
+* **Login**: JWT-based authentication with login rate-limiting and user role-based access control.
+* **Password Management**: Users can change their passwords with validation for strength and format.
+* **RBAC**: The system implements role-based access control (RBAC), where users are assigned specific roles (`customer`, `support_agent`, `auditor`, `admin`), and each role has a defined set of permissions.
 
-### Prerequisites
-- Python 3.8+
-- PostgreSQL 12+
-- Redis 6+
+### **2. Account Management**
 
-### Installation
+* **Account Creation**: Customers and admins can create new accounts (checking, savings) with opening balances.
+* **Account Access**: Users can access and view their own accounts, while support agents and admins have access to all accounts.
+* **Account Status**: Admins can freeze, unfreeze, or close accounts.
 
-\`\`\`bash
-# 1. Clone repository
-git clone <repository-url>
+### **3. Transactions**
+
+* **Internal Transfers**: Users can transfer funds between their own accounts.
+* **External Transfers**: Users can transfer funds to another user's account, subject to validation checks.
+* **Suspicious Transaction Detection**: Rapid or high-value transactions are flagged as suspicious for further review.
+
+### **4. Audit Logs**
+
+* **Audit Log Creation**: Every significant action (e.g., login, role change, account creation) is logged for security and tracking.
+* **Log Hashing**: SHA-256 hashing is applied to ensure the integrity of audit logs, preventing tampering.
+
+### **5. Support Tickets**
+
+* **Ticket Creation**: Customers can open support tickets with a subject and description.
+* **Ticket Management**: Support agents and admins can view, update, and close tickets.
+* **Ticket Notes**: Support agents can add internal notes to tickets for communication and tracking.
+
+### **6. Security Measures**
+
+* **SQL Injection Protection**: All queries are parameterized to prevent SQL injection.
+* **XSS Prevention**: User inputs are sanitized and escaped before being inserted into the DOM to prevent cross-site scripting (XSS) attacks.
+* **Rate Limiting**: Users are limited to a certain number of login attempts to prevent brute-force attacks.
+* **Idempotency**: Idempotency keys are used to prevent duplicate transactions from being processed.
+* **Password Security**: Passwords are hashed using bcrypt and must meet strong criteria (length, case, digit, special character).
+* **RBAC**: Role-based access control ensures that users only have access to the resources and actions permitted for their role.
+
+---
+
+## **Service Running URLs & Setup**
+
+### **Service URLs**
+
+* **RBAC Authentication Service**: `http://localhost:5001`
+* **Transaction Service**: `http://localhost:5002`
+* **Web App Service**: `http://localhost:5003`
+
+### **How to Run the Application**
+
+#### **Step 1: Clone the Repository**
+
+Clone the project repository to your local machine:
+
+```bash
+git clone https://github.com/your-repository/banking-system.git
 cd banking-system
+```
 
-# 2. Install dependencies
-pip install -r requirements.txt
+#### **Step 2: Set up the Environment**
 
-# 3. Configure environment
-cp .env.example .env
+1. **Create a Virtual Environment**:
 
-# Generate secure SECRET_KEY
-python -c "import secrets; print(secrets.token_hex(32))"
-# Add to .env file
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # For Linux/MacOS
+   venv\Scripts\activate  # For Windows
+   ```
 
-# 4. Initialize database
-python database/init_db.py
+2. **Install Dependencies**:
 
-# 5. Start all services
-python run_all_services.py
-\`\`\`
+   Install the required dependencies for all services:
 
-### Default Admin Credentials
-\`\`\`
-Email: admin@bank.com
-Password: Admin@123
-⚠️ MUST change on first login!
-\`\`\`
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## 📚 Documentation
+3. **Environment Variables**:
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed 3-service architecture
-- **[SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md)** - Complete setup and testing
-- **[SECURITY_FEATURES.md](SECURITY_FEATURES.md)** - Security implementation details
-- **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** - API endpoints reference
+   Set up the following environment variables:
 
-## 🔒 Security Measures
+   * `SECRET_KEY`: A secure secret key for JWT token signing.
+   * `REDIS_HOST`: The hostname for Redis (default: `localhost`).
+   * `REDIS_PORT`: The port number for Redis (default: `6379`).
+   * `AUDIT_LOG_URL`: URL to send audit logs (default: `http://localhost:5003/api/audit/log`).
+   * `RBAC_AUTH_URL`: URL for the RBAC authentication service (default: `http://localhost:5001`).
 
-### 1. Authentication & Authorization
-- JWT tokens with expiration
-- Bcrypt password hashing (12 rounds)
-- Strong password requirements
-- RBAC permission matrix
+   Example for `.env` file:
 
-### 2. Injection Prevention
-- Parameterized SQL queries
-- Input sanitization
-- No string concatenation in queries
+   ```
+   SECRET_KEY=your-secret-key
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   AUDIT_LOG_URL=http://localhost:5003/api/audit/log
+   RBAC_AUTH_URL=http://localhost:5001
+   ```
 
-### 3. Rate Limiting
-- 5 login attempts per 15 minutes
-- Redis-based distributed rate limiting
-- Per-IP and per-email tracking
+#### **Step 3: Database Setup**
 
-### 4. Transaction Security
-- Row-level locking (SELECT FOR UPDATE)
-- Idempotency keys (24-hour cache)
-- Atomic transactions with rollback
-- Frozen account enforcement (sender AND receiver)
-- Suspicious activity detection
+1. **Create the SQLite Database**:
 
-### 5. Audit & Monitoring
-- Comprehensive action logging
-- Hash chain for tamper detection
-- IP address tracking
-- User agent tracking
-- Severity levels (info, warning, critical)
+   The project uses SQLite to store user data, accounts, transactions, and audit logs. To set up the database, run the following command:
 
-### 6. Cryptography
-- Bcrypt for passwords
-- JWT for sessions
-- SHA256 for audit hashing
-- Secure random generation
+   ```bash
+   python setup_db.py
+   ```
 
-## 📊 RBAC Permission Matrix
+2. **Populate Initial Data (Optional)**:
 
-| Feature | Customer | Support Agent | Auditor | Admin |
-|---------|----------|---------------|---------|-------|
-| Register/Login | ✓ | ✓ | ✓ | ✓ |
-| Create accounts | ✓ | ✗ | ✗ | ✓ |
-| Transfers | ✓ | ✗ | ✗ | ✓ |
-| View all accounts | ✗ | ✓ | ✓ | ✓ |
-| Freeze accounts | ✗ | ✗ | ✗ | ✓ |
-| Manage users | ✗ | ✗ | ✗ | ✓ |
-| Support tickets | ✗ | ✓ | ✗ | ✓ |
-| Audit logs | ✗ | ✗ | ✓ | ✓ |
+   You can pre-populate the database with sample data by running:
 
-## 🧪 Testing
+   ```bash
+   python seed_db.py
+   ```
 
-### Register Customer
-\`\`\`bash
-curl -X POST http://localhost:5001/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "full_name": "John Doe",
-    "email": "john@example.com",
-    "phone": "+1234567890",
-    "password": "SecurePass123!"
-  }'
-\`\`\`
+#### **Step 4: Start the Services**
 
-### Create Account
-\`\`\`bash
-curl -X POST http://localhost:5002/api/accounts/create \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "account_type": "checking",
-    "opening_balance": 5000.00
-  }'
-\`\`\`
+1. **RBAC Authentication Service**:
 
-### Transfer Money
-\`\`\`bash
-curl -X POST http://localhost:5002/api/transactions/internal-transfer \
-  -H "Authorization: Bearer <token>" \
-  -H "Idempotency-Key: unique-key-12345" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "from_account_id": 1,
-    "to_account_id": 2,
-    "amount": 500.00
-  }'
-\`\`\`
+   * Start the **RBAC Authentication Service**:
 
-## 📋 API Endpoints
+     ```bash
+     python rbac_auth_service.py
+     ```
 
-### RBAC/Auth Service (5001)
-- `POST /api/auth/register` - Register customer
-- `POST /api/auth/login` - Login with rate limiting
-- `POST /api/auth/validate` - Validate JWT token
-- `POST /api/rbac/check` - Check permission
-- `GET /api/rbac/permissions/<role>` - Get role permissions
+2. **Transaction Service**:
 
-### Transaction Service (5002)
-- `POST /api/accounts/create` - Create account
-- `GET /api/accounts/my-accounts` - Get user accounts with recent transactions
-- `GET /api/accounts/all` - Get all accounts (admin/support/auditor)
-- `PATCH /api/accounts/<id>/status` - Update account status (admin only)
-- `POST /api/transactions/internal-transfer` - Internal transfer (atomic)
-- `POST /api/transactions/external-transfer` - External transfer (atomic)
-- `GET /api/transactions/history` - Transaction history with filters
+   * Start the **Transaction Service**:
 
-### Web App (5003)
-- `POST /api/admin/first-login` - Admin first-login password change (REQUIRED)
-- `GET /api/admin/users` - Get all users
-- `POST /api/admin/users` - Create user
-- `PATCH /api/admin/users/<id>/role` - Change user role
-- `GET /api/audit/logs` - Get audit logs with filters
-- `POST /api/support/tickets` - Create support ticket
-- `GET /api/support/tickets` - Get tickets (role-based)
-- `PUT /api/support/tickets/<id>/status` - Update ticket status
+     ```bash
+     python transaction_service.py
+     ```
 
-## 🛠️ Technology Stack
+3. **Web App Service**:
 
-- **Backend**: Python Flask 3.0
-- **Database**: PostgreSQL 12+
-- **Cache**: Redis 6+
-- **Authentication**: JWT (PyJWT)
-- **Password Hashing**: Bcrypt
-- **HTTP Client**: Requests library
+   * Start the **Web App Service**:
 
-## 📦 Project Structure
+     ```bash
+     python web_app_service.py
+     ```
 
-\`\`\`
-banking-system/
-├── database/
-│   └── init_db.py              # Database setup with default admin
-├── rbac_auth_service.py        # Service 1: Auth + RBAC
-├── transaction_service.py      # Service 2: Transactions + Database
-├── web_app.py                  # Service 3: Admin + Support + Audit
-├── run_all_services.py         # Start all 3 services
-├── requirements.txt            # Python dependencies
-├── .env.example                # Environment template
-├── ARCHITECTURE.md             # System design documentation
-├── SETUP_INSTRUCTIONS.md       # Setup and testing guide
-└── README.md                   # This file
-\`\`\`
+---
 
-## 📝 Project Requirements Satisfied
+## **File Descriptions**
 
-✅ 3-service microservices architecture  
-✅ Flask backend  
-✅ No Docker (runs natively)  
-✅ Role-Based Access Control (4 roles)  
-✅ User registration and authentication  
-✅ Account creation and management  
-✅ Internal and external transfers  
-✅ Transaction history with filters  
-✅ Support ticket system  
-✅ Admin panel with user management  
-✅ Audit logging system  
-✅ Account status management  
-✅ All security measures implemented:
-  - Injection prevention
-  - SSRF prevention
-  - Authentication & authorization
-  - RBAC enforcement
-  - Cryptography (Bcrypt, JWT, SHA256)
-  - Rate limiting
-  - Audit logging
-  - Input validation
+### **1. `rbac_auth_service.py`**
 
-## 🤝 Team Contributions
+This file contains the **authentication logic** for the banking system. It handles:
 
-This project was developed for EECE503M - Software Security at the American University of Beirut. Individual contributions are documented in the project report.
+* User registration and login using JWT.
+* Password validation and hashing using bcrypt.
+* Role-based access control (RBAC) for different roles (`customer`, `support_agent`, `auditor`, `admin`).
+* Rate-limiting to prevent brute-force attacks.
+* Audit logging for user actions like registration, login, and password changes.
 
-## 🔐 Security Testing Scenarios
+### **2. `transaction_service.py`**
 
-1. **Rate Limiting**: Try 6 failed login attempts
-2. **RBAC**: Try accessing admin endpoints as customer
-3. **Frozen Accounts**: Freeze account, attempt transfer (blocked)
-4. **Idempotency**: Send same transfer twice with same key
-5. **Suspicious Activity**: Transfer $15,000 (flagged)
-6. **First-Login**: Admin must change password before accessing functions
-7. **Audit Integrity**: Verify hash chain with verification endpoint
+This file manages the **banking transactions**. It includes:
 
-## 📄 License
+* Account creation and management.
+* Internal and external fund transfers.
+* Transaction validation, including checks for suspicious activity.
+* Use of idempotency keys to prevent duplicate transactions.
+* Audit logging for transactions.
+* Suspicious transaction detection based on rapid transfer patterns or large amounts.
 
-Academic project - American University of Beirut EECE503M
+### **3. `web_app.py`**
 
-## 🔐 Production Deployment Notes
+This file serves as the **web app backend**. It includes:
 
-### Before Going Live:
+* Admin panel for managing users and tickets.
+* Support ticket creation, management, and notes.
+* Viewing and managing audit logs.
+* Profile management and role updates for users.
 
-1. **Change all default credentials**
-   - Generate strong SECRET_KEY
-   - Change default admin password
-   - Use production database credentials
+---
 
-2. **Enable HTTPS**
-   - Get SSL/TLS certificates
-   - Configure reverse proxy (nginx)
+## **Security Measures & Mitigation**
 
-3. **Secure services**
-   - Use environment-specific configs
-   - Enable Redis authentication
-   - Set up firewall rules
+### **1. SQL Injection Prevention**
 
-4. **Monitoring**
-   - Log aggregation (ELK stack)
-   - Performance monitoring
-   - Error tracking
+* **What we did**: All SQL queries are parameterized, preventing SQL injection. For example, user input is passed as query parameters (e.g., `cursor.execute("SELECT id FROM users WHERE email = ?", (email,))`).
+* **Why it works**: This ensures that user input is treated strictly as data, not executable code.
 
-5. **Regular maintenance**
-   - Database backups
-   - Security updates
-   - Audit log archiving
+### **2. Cross-Site Scripting (XSS)**
 
-For detailed deployment instructions, see [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md).
+* **What we did**: User inputs that are rendered into HTML are sanitized and escaped using `escapeHtml()` before being inserted into the DOM.
+* **Why it works**: This prevents malicious scripts from being executed in the browser.
+
+### **3. Cross-Site Request Forgery (CSRF)**
+
+* **What we did**: We use **JWT tokens** for authentication rather than cookies, which prevents CSRF attacks.
+* **Why it works**: Since JWT tokens are passed in the `Authorization` header, they are not vulnerable to CSRF, unlike cookies.
+
+### **4. Broken Access Control**
+
+* **What we did**: Role-based access control (RBAC) is implemented, and each role (e.g., `customer`, `support_agent`, `auditor`, `admin`) has a defined set of permissions. We ensure that users can only perform actions that align with their role.
+* **Why it works**: This ensures that sensitive actions (e.g., account modification, transferring funds) are only accessible to authorized users.
+
+### **5. Rate Limiting**
+
+* **What we did**: We implemented **rate limiting** for login attempts to prevent brute-force attacks.
+* **Why it works**: This restricts the number of attempts a user can make within a certain time period, reducing the risk of password cracking.
+
+### **6. Password Security**
+
+* **What we did**: Passwords are hashed using **bcrypt** with a strong validation policy (length, upper/lowercase, digits, and special characters).
+* **Why it works**: bcrypt ensures that passwords are stored securely, and the validation policy ensures that users choose strong passwords.
+
+---
+
+## **Requirements Achieved**
+
+1. **RBAC Implementation**: Fully implemented and enforced across all routes.
+2. **Authentication & Authorization**: Secure JWT-based login, registration, and password management.
+3. **Transaction Security**: Suspicious transaction detection and idempotency to prevent duplicates.
+4. **Audit Logs**: Comprehensive logging of critical actions, with log integrity ensured via SHA-256 hashing.
+5. **Security Best Practices**: SQL injection prevention, XSS protection, password hashing, and rate limiting.
+
+---
+
+## **How to Contribute**
+
+If you'd like to contribute to this project:
+
+1. Fork the repository.
+2. Create a new branch.
+3. Implement your changes.
+4. Submit a pull request.
+
+---
+
+This **README** provides a comprehensive overview of the **Secure Banking System**. It outlines the core features, security measures, and how to set up the system locally. Ensure that the application is always run over **HTTPS** in a production environment, and monitor for security vulnerabilities regularly.
