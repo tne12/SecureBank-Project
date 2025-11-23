@@ -244,6 +244,93 @@ This file serves as the **web app backend**. It includes:
 
 ---
 
+Here’s a detailed list of all the API URLs implemented across the services and a **RBAC matrix** for each URL showing role-based access control for each endpoint.
+
+---
+
+### **API Endpoints Overview**
+
+#### **1. RBAC & Authentication Service (Port: 5001)**
+
+| **URL**                        | **Method** | **Description**                                       | **RBAC Roles Allowed**                          |
+| ------------------------------ | ---------- | ----------------------------------------------------- | ----------------------------------------------- |
+| `/api/auth/register`           | POST       | Register a new user                                   | `customer`                                      |
+| `/api/auth/login`              | POST       | User login and JWT issuance                           | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/auth/validate`           | POST       | Validate JWT token                                    | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/auth/change-password`    | POST       | Change the current user’s password (first login flow) | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/rbac/check`              | POST       | Check RBAC permission for a given action and role     | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/rbac/permissions/<role>` | GET        | Get all permissions for a specific role               | `admin`                                         |
+
+#### **2. Transaction Service (Port: 5002)**
+
+| **URL**                                 | **Method** | **Description**                                       | **RBAC Roles Allowed**                          |
+| --------------------------------------- | ---------- | ----------------------------------------------------- | ----------------------------------------------- |
+| `/api/transfers/internal`               | POST       | Perform an internal transfer between user accounts    | `customer`, `admin`                             |
+| `/api/transfers/external`               | POST       | Perform an external transfer to another user          | `customer`, `admin`                             |
+| `/api/accounts/create`                  | POST       | Create a new bank account                             | `customer`, `admin`                             |
+| `/api/accounts`                         | GET        | Get the list of accounts for the logged-in user       | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/accounts/my-accounts`             | GET        | Get the list of the logged-in user's own accounts     | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/accounts/<int:account_id>/status` | PATCH      | Freeze/Unfreeze/Close a specific account (admin only) | `admin`                                         |
+| `/api/transactions`                     | GET        | Get transactions for the logged-in user               | `customer`, `support_agent`, `auditor`, `admin` |
+
+#### **3. Web App Service (Port: 5003)**
+
+| **URL**                                | **Method** | **Description**                                        | **RBAC Roles Allowed**                          |
+| -------------------------------------- | ---------- | ------------------------------------------------------ | ----------------------------------------------- |
+| `/api/audit/log`                       | POST       | Create an audit log entry for an action                | `admin`                                         |
+| `/api/audit/logs`                      | GET        | Get audit logs (filtered by various parameters)        | `auditor`, `admin`                              |
+| `/api/profile`                         | GET        | Get the logged-in user's profile                       | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/profile`                         | PATCH      | Update the logged-in user's profile                    | `customer`, `support_agent`, `auditor`, `admin` |
+| `/api/admin/users`                     | GET        | Get the list of all users                              | `admin`                                         |
+| `/api/admin/users`                     | POST       | Create a new user (admin only)                         | `admin`                                         |
+| `/api/admin/users/<int:user_id>/role`  | PATCH      | Change the role of a user (admin only)                 | `admin`                                         |
+| `/api/support/tickets`                 | POST       | Create a new support ticket                            | `customer`                                      |
+| `/api/support/tickets`                 | GET        | Get the list of support tickets for the logged-in user | `customer`, `support_agent`, `admin`            |
+| `/api/support/tickets/<int:ticket_id>` | PATCH      | Update the status or add notes to a ticket             | `support_agent`, `admin`                        |
+
+---
+
+### **RBAC Permissions Matrix**
+
+This matrix shows which roles have access to each of the above API endpoints and the actions they can perform:
+
+| **API Endpoint**                        | **customer** | **support_agent** | **auditor** | **admin** |
+| --------------------------------------- | ------------ | ----------------- | ----------- | --------- |
+| `/api/auth/register`                    | ✅            | ❌                 | ❌           | ❌         |
+| `/api/auth/login`                       | ✅            | ✅                 | ✅           | ✅         |
+| `/api/auth/validate`                    | ✅            | ✅                 | ✅           | ✅         |
+| `/api/auth/change-password`             | ✅            | ✅                 | ✅           | ✅         |
+| `/api/rbac/check`                       | ✅            | ✅                 | ✅           | ✅         |
+| `/api/rbac/permissions/<role>`          | ❌            | ❌                 | ❌           | ✅         |
+| `/api/transfers/internal`               | ✅            | ❌                 | ❌           | ✅         |
+| `/api/transfers/external`               | ✅            | ❌                 | ❌           | ✅         |
+| `/api/accounts/create`                  | ✅            | ❌                 | ❌           | ✅         |
+| `/api/accounts`                         | ✅            | ✅                 | ✅           | ✅         |
+| `/api/accounts/my-accounts`             | ✅            | ✅                 | ✅           | ✅         |
+| `/api/accounts/<int:account_id>/status` | ❌            | ❌                 | ❌           | ✅         |
+| `/api/transactions`                     | ✅            | ✅                 | ✅           | ✅         |
+| `/api/audit/log`                        | ❌            | ❌                 | ❌           | ✅         |
+| `/api/audit/logs`                       | ❌            | ❌                 | ✅           | ✅         |
+| `/api/profile`                          | ✅            | ✅                 | ✅           | ✅         |
+| `/api/admin/users`                      | ❌            | ❌                 | ❌           | ✅         |
+| `/api/admin/users`                      | ❌            | ❌                 | ❌           | ✅         |
+| `/api/admin/users/<int:user_id>/role`   | ❌            | ❌                 | ❌           | ✅         |
+| `/api/support/tickets`                  | ✅            | ❌                 | ❌           | ✅         |
+| `/api/support/tickets`                  | ✅            | ✅                 | ✅           | ✅         |
+| `/api/support/tickets/<int:ticket_id>`  | ❌            | ✅                 | ❌           | ✅         |
+
+### **Roles and Their Permissions:**
+
+1. **Customer**: Has access to basic functionality such as viewing and creating accounts, internal/external transfers, and managing their own profile. Cannot view other users' accounts or perform admin actions.
+
+2. **Support Agent**: Can manage support tickets, view customer accounts, and perform transactions. Cannot access audit logs or change user roles.
+
+3. **Auditor**: Can view audit logs and monitor transactions. Limited in other areas, cannot perform actions like account creation or modifying user roles.
+
+4. **Admin**: Full access to all functionalities, including user management (creating users, changing roles), viewing audit logs, and performing all actions on accounts and transactions.
+
+---
+
 ## **Requirements Achieved**
 
 1. **RBAC Implementation**: Fully implemented and enforced across all routes.
