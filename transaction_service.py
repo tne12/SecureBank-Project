@@ -741,6 +741,46 @@ def external_transfer():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/accounts/others", methods=["GET"])
+def get_other_active_accounts():
+    """
+    Return a list of other users' active accounts,
+    used for external transfers UI.
+    """
+    current_user = validate_token_and_get_user(request)
+    if not current_user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                a.id,
+                a.account_number,
+                a.account_type,
+                a.balance,
+                u.full_name AS owner_name
+            FROM accounts a
+            JOIN users u ON a.user_id = u.id
+            WHERE a.status = 'active'
+              AND a.user_id != ?
+            ORDER BY a.id DESC
+            """,
+            (current_user["user_id"],),
+        )
+
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        accounts = [dict(row) for row in rows]
+        return jsonify(accounts), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/transactions", methods=["GET"])
 def get_transactions():

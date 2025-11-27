@@ -8,9 +8,9 @@ const API_ROOT = "http://localhost:5003/api"
 
 // Frontend RBAC: which views each role is allowed to open
 const ROLE_VIEW_PERMISSIONS = {
-  customer: new Set(["dashboard", "accounts", "transfer", "support", "profile"]),
-  support_agent: new Set(["dashboard", "support", "accounts", "profile"]),
-  auditor: new Set(["dashboard", "audit", "accounts", "profile"]),
+  customer: new Set(["dashboard", "accounts", "transfer", "support", "profile", "transactions"]),
+  support_agent: new Set(["dashboard", "support", "accounts", "profile", "transactions"]),
+  auditor: new Set(["dashboard", "audit", "accounts", "profile", "transactions"]),
   admin: new Set([
     "dashboard",
     "accounts",
@@ -20,8 +20,10 @@ const ROLE_VIEW_PERMISSIONS = {
     "admin-accounts",
     "audit",
     "profile",
+    "transactions",
   ]),
 }
+
 
 function canAccessView(role, viewName) {
   const allowed = ROLE_VIEW_PERMISSIONS[role]
@@ -344,9 +346,12 @@ async function loadView(viewName) {
       break
     case "profile":
       await loadProfileView(container)
+    case "transactions":
+      await loadTransactionsView(container)
       break
   }
 }
+
 
 // Dashboard View
 async function loadDashboardView(container) {
@@ -378,7 +383,21 @@ async function loadDashboardView(container) {
                         <div class="text-3xl font-bold">${accounts.reduce((sum, a) => sum + a.recent_transactions.length, 0)}</div>
                     </div>
                 </div>
-                
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onclick="loadView('transfer')"
+                    class="bg-primary text-primary-foreground rounded-xl p-4 flex items-center justify-between hover:opacity-90"
+                  >
+                    <div>
+                      <div class="text-sm text-primary-foreground/80">Quick Action</div>
+                      <div class="text-lg font-semibold">Make a Transfer</div>
+                    </div>
+                    <i class="fas fa-exchange-alt text-2xl"></i>
+                  </button>
+                  <!-- (Reserve other cards later for bill payment / scheduled payments etc.) -->
+                </div>
+
                 <div>
                     <h3 class="text-xl font-semibold mb-4">Your Accounts</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -500,36 +519,61 @@ async function loadAccountsView(container) {
 }
 
 // Create Account Modal
-window.showCreateAccountModal = () => {
+window.showCreateAccountModal = async () => {
+  const isAdmin = currentUser && currentUser.role === "admin"
+  let users = []
+
+  if (isAdmin) {
+    try {
+      const res = await apiCall(`${API_ADMIN}/users`)
+      users = res.users || []
+    } catch (e) {
+      console.error("Failed to load users for admin account creation", e)
+    }
+  }
+
   const modal = document.createElement("div")
   modal.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4"
+
   modal.innerHTML = `
-        <div class="bg-card rounded-2xl p-8 max-w-md w-full shadow-2xl">
-            <h3 class="text-2xl font-bold mb-6">Create New Account</h3>
-            <form id="create-account-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Account Type</label>
-                    <select name="account_type" required class="w-full px-4 py-2 bg-background border border-input rounded-lg">
-                        <option value="checking">Checking</option>
-                        <option value="savings">Savings</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-2">Opening Balance</label>
-                    <input type="number" name="opening_balance" step="0.01" min="0" value="0" required
-                        class="w-full px-4 py-2 bg-background border border-input rounded-lg">
-                </div>
-                <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-primary text-primary-foreground py-2 rounded-lg hover:opacity-90">
-                        Create Account
-                    </button>
-                    <button type="button" onclick="this.closest('.fixed').remove()" class="flex-1 bg-secondary text-secondary-foreground py-2 rounded-lg hover:opacity-90">
-                        Cancel
-                    </button>
-                </div>
-            </form>
+    <div class="bg-card rounded-2xl p-8 max-w-md w-full shadow-2xl">
+      <h3 class="text-2xl font-bold mb-6">Create New Account</h3>
+      <form id="create-account-form" class="space-y-4">
+        ${isAdmin ? `
+          <div>
+            <label class="block text-sm font-medium mb-2">Account Owner</label>
+            <select name="user_id" required class="w-full px-4 py-2 bg-background border border-input rounded-lg">
+              ${users.map(u => `
+                <option value="${u.id}">
+                  ${escapeHtml(u.full_name)} (${escapeHtml(u.email)})
+                </option>
+              `).join("")}
+            </select>
+          </div>
+        ` : ""}
+        <div>
+          <label class="block text-sm font-medium mb-2">Account Type</label>
+          <select name="account_type" required class="w-full px-4 py-2 bg-background border border-input rounded-lg">
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+          </select>
         </div>
-    `
+        <div>
+          <label class="block text-sm font-medium mb-2">Opening Balance</label>
+          <input type="number" name="opening_balance" step="0.01" min="0" value="0" required
+            class="w-full px-4 py-2 bg-background border border-input rounded-lg">
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 bg-primary text-primary-foreground py-2 rounded-lg hover:opacity-90">
+            Create Account
+          </button>
+          <button type="button" onclick="this.closest('.fixed').remove()" class="flex-1 bg-secondary text-secondary-foreground py-2 rounded-lg hover:opacity-90">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  `
   document.body.appendChild(modal)
 
   document.getElementById("create-account-form").addEventListener("submit", async (e) => {
@@ -545,12 +589,17 @@ window.showCreateAccountModal = () => {
 
       modal.remove()
       showSuccess("Account created successfully!")
-      loadView("accounts")
+      if (currentUser.role === "admin") {
+        loadView("admin-accounts")
+      } else {
+        loadView("accounts")
+      }
     } catch (error) {
-      showError("create-account-error", error.message)
+      alert(error.message)
     }
   })
 }
+
 
 // Transfer View
 async function loadTransferView(container) {
@@ -560,7 +609,13 @@ async function loadTransferView(container) {
       (a) => a.status === "active",
     )
 
-
+    let otherAccounts = []
+    try {
+      const othersData = await apiCall(`${API_ACCOUNTS}/others`)
+      otherAccounts = Array.isArray(othersData) ? othersData : []
+    } catch (e) {
+      console.error("Failed to load other accounts", e)
+    }
     container.innerHTML = `
             <div class="space-y-6">
                 <h2 class="text-2xl font-bold">Transfer Money</h2>
@@ -615,9 +670,20 @@ async function loadTransferView(container) {
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium mb-2">To Account Number</label>
-                                <input type="text" name="to_account_number" required
-                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg font-mono">
+                                <label class="block text-sm font-medium mb-2">To Account</label>
+                                <select name="to_account_number" required
+                                    class="w-full px-4 py-2 bg-background border border-input rounded-lg">
+                                    <option value="">Select target account...</option>
+                                    ${otherAccounts
+        .map(
+          (a) => `
+                                          <option value="${escapeHtml(a.account_number)}">
+                                            ${escapeHtml(a.account_number)} - ${escapeHtml(a.owner_name || "")}
+                                          </option>
+                                        `,
+        )
+        .join("")}
+                                </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium mb-2">Amount</label>
@@ -712,7 +778,8 @@ async function loadTransferView(container) {
 async function loadSupportView(container) {
   try {
     const ticketsData = await apiCall(`${API_SUPPORT}/tickets`)
-    const tickets = ticketsData.tickets
+    const tickets = Array.isArray(ticketsData.tickets) ? ticketsData.tickets : []
+
 
     const isSupport = currentUser.role === "support_agent" || currentUser.role === "admin"
 
@@ -734,29 +801,32 @@ async function loadSupportView(container) {
                                 <div>
                                     <div class="text-sm text-muted-foreground mb-1">Ticket #${ticket.ticket_number}</div>
                                     <h3 class="text-lg font-semibold">${escapeHtml(ticket.subject)}</h3>
-                                    ${isSupport ? `<div class="text-sm text-muted-foreground mt-1">Customer: ${escapeHtml(ticket.customer.full_name)} (${escapeHtml(ticket.customer.email)})</div>` : ""}
+                                ${isSupport ? `<div class="text-sm text-muted-foreground mt-1">
+                                    Customer: ${escapeHtml((ticket.customer && ticket.customer.full_name) || "")}
+                                    (${escapeHtml((ticket.customer && ticket.customer.email) || "")})
+                                  </div>` : ""}
                                 </div>
                                 <span class="status-badge status-${escapeHtml(ticket.status)}">${escapeHtml(ticket.status.replace("_", " "))}</span>
                             </div>
                             <p class="text-sm text-muted-foreground mb-4">${escapeHtml(ticket.description)}</p>
                             
-                            ${ticket.notes.length > 0 ? `
-                                <div class="border-t border-border pt-4 mb-4">
-                                    <div class="text-sm font-medium mb-2">Notes</div>
-                                    <div class="space-y-2">
-                                        ${ticket.notes.map((note) => `
-                                            <div class="bg-background rounded-lg p-3">
-                                                <div class="flex justify-between text-xs text-muted-foreground mb-1">
-                                                    <span>${escapeHtml(note.author)} (${escapeHtml(note.author_role)})</span>
-                                                    <span>${new Date(note.created_at).toLocaleString()}</span>
-                                                </div>
-                                                <div class="text-sm">${escapeHtml(note.note)}</div>
-                                            </div>
-                                        `,).join("")}
+                            ${(ticket.notes && ticket.notes.length > 0) ? `
+                              <div class="border-t border-border pt-4 mb-4">
+                                <div class="text-sm font-medium mb-2">Notes</div>
+                                <div class="space-y-2">
+                                  ${ticket.notes.map((note) => `
+                                    <div class="bg-background rounded-lg p-3">
+                                      <div class="flex justify-between text-xs text-muted-foreground mb-1">
+                                        <span>${escapeHtml(note.author || "")} (${escapeHtml(note.author_role || "")})</span>
+                                        <span>${note.created_at ? new Date(note.created_at).toLocaleString() : ""}</span>
+                                      </div>
+                                      <div class="text-sm">${escapeHtml(note.note || "")}</div>
                                     </div>
+                                  `).join("")}
                                 </div>
-                            `: ""}
-                            
+                              </div>
+                            ` : ""}
+
                             <div class="flex gap-3">
                                 <button onclick="showAddNoteModal(${ticket.id})" class="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:opacity-90">
                                     Add Note
@@ -1475,6 +1545,160 @@ async function loadAuditView(container) {
     container.innerHTML = `<div class="text-destructive">Error loading audit logs: ${escapeHtml(error.message)}</div>`
   }
 }
+
+async function loadTransactionsView(container) {
+  try {
+    // default: no filters
+    const params = new URLSearchParams({ limit: "200" })
+    const response = await apiCall(`${API_TRANSACTIONS.replace("/transfers", "")}/transactions?${params.toString()}`)
+    const transactions = response.transactions || []
+
+    container.innerHTML = `
+      <div class="space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-2xl font-bold">Transaction History</h2>
+        </div>
+
+        <!-- Filters -->
+        <form id="tx-filter-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-card border border-border rounded-xl p-4">
+          <div>
+            <label class="block text-xs font-medium mb-1">Start date</label>
+            <input type="date" name="start_date"
+              class="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1">End date</label>
+            <input type="date" name="end_date"
+              class="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1">Type</label>
+            <select name="type" class="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm">
+              <option value="">All</option>
+              <option value="internal_transfer">Internal</option>
+              <option value="external_transfer">External</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1">Min amount</label>
+            <input type="number" step="0.01" name="min_amount"
+              class="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1">Max amount</label>
+            <input type="number" step="0.01" name="max_amount"
+              class="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm">
+          </div>
+          <div class="md:col-span-5 flex justify-end gap-3 mt-2">
+            <button type="button" id="tx-reset-filters"
+              class="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg">
+              Reset
+            </button>
+            <button type="submit"
+              class="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg">
+              Apply filters
+            </button>
+          </div>
+        </form>
+
+        <div class="bg-card border border-border rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tx-table-body">
+                ${transactions.map(tx => `
+                  <tr>
+                    <td>${new Date(tx.created_at).toLocaleString()}</td>
+                    <td class="font-mono text-xs">${escapeHtml(tx.transaction_id)}</td>
+                    <td>${escapeHtml(tx.transaction_type)}</td>
+                    <td>
+                      <div class="text-xs">
+                        <div class="font-mono">${escapeHtml(tx.sender_account_number || "-")}</div>
+                        <div class="text-muted-foreground">${escapeHtml(tx.sender_user || "")}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="text-xs">
+                        <div class="font-mono">${escapeHtml(tx.receiver_account_number || "-")}</div>
+                        <div class="text-muted-foreground">${escapeHtml(tx.receiver_user || "")}</div>
+                      </div>
+                    </td>
+                    <td class="font-bold">$${Number(tx.amount).toFixed(2)}</td>
+                    <td>${escapeHtml(tx.status || "")}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `
+
+    // Hook up filter form
+    const form = document.getElementById("tx-filter-form")
+    const tbody = document.getElementById("tx-table-body")
+    const resetBtn = document.getElementById("tx-reset-filters")
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault()
+      const fd = new FormData(form)
+      const f = sanitizeFormData(fd)
+
+      const qs = new URLSearchParams({ limit: "200" })
+      if (f.start_date) qs.set("start_date", f.start_date)
+      if (f.end_date) qs.set("end_date", f.end_date)
+      if (f.type) qs.set("type", f.type)
+      if (f.min_amount) qs.set("min_amount", f.min_amount)
+      if (f.max_amount) qs.set("max_amount", f.max_amount)
+
+      try {
+        const res = await apiCall(`${API_TRANSACTIONS.replace("/transfers", "")}/transactions?${qs.toString()}`)
+        const txs = res.transactions || []
+        tbody.innerHTML = txs.map(tx => `
+          <tr>
+            <td>${new Date(tx.created_at).toLocaleString()}</td>
+            <td class="font-mono text-xs">${escapeHtml(tx.transaction_id)}</td>
+            <td>${escapeHtml(tx.transaction_type)}</td>
+            <td>
+              <div class="text-xs">
+                <div class="font-mono">${escapeHtml(tx.sender_account_number || "-")}</div>
+                <div class="text-muted-foreground">${escapeHtml(tx.sender_user || "")}</div>
+              </div>
+            </td>
+            <td>
+              <div class="text-xs">
+                <div class="font-mono">${escapeHtml(tx.receiver_account_number || "-")}</div>
+                <div class="text-muted-foreground">${escapeHtml(tx.receiver_user || "")}</div>
+              </div>
+            </td>
+            <td class="font-bold">$${Number(tx.amount).toFixed(2)}</td>
+            <td>${escapeHtml(tx.status || "")}</td>
+          </tr>
+        `).join("")
+      } catch (err) {
+        alert(err.message)
+      }
+    })
+
+    resetBtn.addEventListener("click", () => {
+      form.reset()
+      loadTransactionsView(container)
+    })
+  } catch (error) {
+    container.innerHTML = `<div class="text-destructive">Error loading transactions: ${escapeHtml(error.message)}</div>`
+  }
+}
+
 
 window.addEventListener("DOMContentLoaded", () => {
   const savedToken = localStorage.getItem("authToken")

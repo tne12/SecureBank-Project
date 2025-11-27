@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/styles.css">
 </head>
+
 <body class="bg-background text-foreground">
     <!-- Main App Container -->
     <div id="app">
@@ -28,7 +30,8 @@
                 <!-- Auth Tabs -->
                 <div class="bg-card border border-border rounded-2xl shadow-lg overflow-hidden">
                     <div class="flex border-b border-border">
-                        <button id="login-tab" class="flex-1 py-4 text-sm font-medium transition-colors auth-tab active">
+                        <button id="login-tab"
+                            class="flex-1 py-4 text-sm font-medium transition-colors auth-tab active">
                             Sign In
                         </button>
                         <button id="register-tab" class="flex-1 py-4 text-sm font-medium transition-colors auth-tab">
@@ -50,12 +53,14 @@
                                     class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
                             <div id="login-error" class="hidden text-sm text-destructive"></div>
-                            <button type="submit" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                            <button type="submit"
+                                class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
                                 Sign In
                             </button>
                         </form>
                         <p class="mt-4 text-sm text-muted-foreground text-center">
-                            Default admin: <span class="font-mono text-foreground">admin@bank.com</span> / <span class="font-mono text-foreground">Admin@123</span>
+                            Default admin: <span class="font-mono text-foreground">admin@bank.com</span> / <span
+                                class="font-mono text-foreground">Admin@123</span>
                         </p>
                     </div>
 
@@ -86,7 +91,8 @@
                                 </p>
                             </div>
                             <div id="register-error" class="hidden text-sm text-destructive"></div>
-                            <button type="submit" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                            <button type="submit"
+                                class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
                                 Create Account
                             </button>
                         </form>
@@ -111,7 +117,8 @@
                             <button id="profile-button" class="flex items-center gap-2 hover:opacity-80">
                                 <div class="">
                                     <div id="user-name" class="text-sm font-medium"></div>
-                                    <div id="user-role" class="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary"></div>
+                                    <div id="user-role"
+                                        class="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary"></div>
                                 </div>
                             </button>
                             <button id="logout-btn" class="text-sm text-muted-foreground hover:text-foreground">
@@ -126,26 +133,38 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <!-- Role-based Navigation -->
                 <div class="mb-8 flex gap-2 border-b border-border overflow-x-auto">
-                    <button class="nav-btn active px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="dashboard">
+                    <button class="nav-btn active px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="dashboard">
                         <i class="fas fa-home mr-2"></i>Dashboard
                     </button>
-                    <button class="nav-btn customer-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="accounts">
+                    <button class="nav-btn customer-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="accounts">
                         <i class="fas fa-wallet mr-2"></i>My Accounts
                     </button>
-                    <button class="nav-btn customer-only admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="transfer">
+                    <button class="nav-btn customer-only admin-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="transfer">
                         <i class="fas fa-exchange-alt mr-2"></i>Transfer
                     </button>
-                    <button class="nav-btn customer-only support-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="support">
+                    <button class="nav-btn customer-only support-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="support">
                         <i class="fas fa-headset mr-2"></i>Support
                     </button>
-                    <button class="nav-btn admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="admin-users">
+                    <button class="nav-btn admin-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="admin-users">
                         <i class="fas fa-users-cog mr-2"></i>Users
                     </button>
-                    <button class="nav-btn admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="admin-accounts">
+                    <button class="nav-btn admin-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="admin-accounts">
                         <i class="fas fa-university mr-2"></i>All Accounts
                     </button>
-                    <button class="nav-btn auditor-only admin-only px-4 py-2 font-medium text-sm whitespace-nowrap" data-view="audit">
+                    <button class="nav-btn auditor-only admin-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="audit">
                         <i class="fas fa-clipboard-list mr-2"></i>Audit Logs
+                    </button>
+                    <button
+                        class="nav-btn customer-only support-only auditor-only admin-only px-4 py-2 font-medium text-sm whitespace-nowrap"
+                        data-view="transactions">
+                        <i class="fas fa-list mr-2"></i>Transactions
                     </button>
                 </div>
 
@@ -157,7 +176,8 @@
         </div>
 
         <!-- Change Password Modal -->
-        <div id="change-password-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+        <div id="change-password-modal"
+            class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
             <div class="bg-card rounded-2xl p-8 max-w-md w-full shadow-2xl">
                 <h2 class="text-2xl font-bold mb-4">Change Password</h2>
                 <p class="text-sm text-muted-foreground mb-6">Please change your password on first login</p>
@@ -173,7 +193,8 @@
                             class="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                     </div>
                     <div id="change-password-error" class="hidden text-sm text-destructive"></div>
-                    <button type="submit" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                    <button type="submit"
+                        class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
                         Change Password
                     </button>
                 </form>
@@ -183,4 +204,5 @@
 
     <script src="/app.js"></script>
 </body>
+
 </html>

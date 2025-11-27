@@ -536,7 +536,7 @@ def admin_update_user_role(user_id):
 
 @app.route('/api/support/tickets', methods=['POST'])
 def create_ticket():
-    """Customer: open support ticket"""
+    """Customer (or any logged-in user): open support ticket"""
     token = request.headers.get('Authorization')
     if not token:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -549,21 +549,27 @@ def create_ticket():
         return jsonify({'error': 'Unauthorized'}), 401
 
     try:
-        data = request.get_json()
-        subject = data.get('subject')
-        description = data.get('description')
+        data = request.get_json() or {}
+        subject = (data.get('subject') or '').strip()
+        description = (data.get('description') or '').strip()
+
+        if not subject or not description:
+            return jsonify({'error': 'Subject and description are required'}), 400
 
         ticket_number = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO support_tickets (ticket_number, user_id, subject, description, status)
-            VALUES (?, ?, ?, ?, ?)
-        """, (ticket_number, current_user['user_id'], subject, description, 'open'))
-
+            VALUES (?, ?, ?, ?, 'open')
+            """,
+            (ticket_number, current_user['user_id'], subject, description),
+        )
         ticket_id = cursor.lastrowid
+
         conn.commit()
         cursor.close()
         conn.close()
@@ -571,7 +577,7 @@ def create_ticket():
         return jsonify({
             'message': 'Ticket created successfully',
             'ticket_id': ticket_id,
-            'ticket_number': ticket_number
+            'ticket_number': ticket_number,
         }), 201
 
     except Exception as e:
@@ -580,7 +586,12 @@ def create_ticket():
 
 @app.route('/api/support/tickets', methods=['GET'])
 def list_tickets():
-    """List tickets. Customers see their own; support/admin see all."""
+    """
+    List tickets.
+    - Customers: only their own tickets.
+    - Support agents / admins: all tickets.
+    Each ticket includes customer info and notes[].
+    """
     token = request.headers.get('Authorization')
     if not token:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -597,12 +608,14 @@ def list_tickets():
         cursor = conn.cursor()
 
         if current_user['role'] in ['support_agent', 'admin']:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT 
                     t.id,
                     t.ticket_number,
                     t.user_id,
                     u.full_name AS customer_name,
+                    u.email     AS customer_email,
                     t.subject,
                     t.description,
                     t.status,
@@ -612,14 +625,17 @@ def list_tickets():
                 FROM support_tickets t
                 LEFT JOIN users u ON t.user_id = u.id
                 ORDER BY t.created_at DESC
-            """)
+                """
+            )
         else:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT 
                     t.id,
                     t.ticket_number,
                     t.user_id,
                     u.full_name AS customer_name,
+                    u.email     AS customer_email,
                     t.subject,
                     t.description,
                     t.status,
@@ -630,15 +646,169 @@ def list_tickets():
                 LEFT JOIN users u ON t.user_id = u.id
                 WHERE t.user_id = ?
                 ORDER BY t.created_at DESC
-            """, (current_user['user_id'],))
+                """,
+                (current_user['user_id'],),
+            )
 
-        rows = cursor.fetchall()
+        ticket_rows = cursor.fetchall()
+        ticket_ids = [row['id'] for row in ticket_rows]
+        notes_by_ticket = {tid: [] for tid in ticket_ids}
+
+        # Fetch notes for all these tickets
+        if ticket_ids:
+            cursor.execute(
+                """
+                SELECT 
+                    n.ticket_id,
+                    n.note,
+                    n.created_at,
+                    u.full_name AS author,
+                    u.role      AS author_role
+                FROM ticket_notes n
+                JOIN users u ON n.user_id = u.id
+                WHERE n.ticket_id IN ({})
+                ORDER BY n.created_at ASC
+                """.format(",".join("?" * len(ticket_ids))),
+                ticket_ids,
+            )
+            for n in cursor.fetchall():
+                notes_by_ticket[n['ticket_id']].append(
+                    {
+                        'note': n['note'],
+                        'created_at': n['created_at'],
+                        'author': n['author'],
+                        'author_role': n['author_role'],
+                    }
+                )
+
         cursor.close()
         conn.close()
 
-        tickets = [dict(row) for row in rows]
+        tickets = []
+        for row in ticket_rows:
+            tickets.append(
+                {
+                    'id': row['id'],
+                    'ticket_number': row['ticket_number'],
+                    'subject': row['subject'],
+                    'description': row['description'],
+                    'status': row['status'],
+                    'assigned_to': row['assigned_to'],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at'],
+                    'customer': {
+                        'id': row['user_id'],
+                        'full_name': row['customer_name'] or '',
+                        'email': row['customer_email'] or '',
+                    },
+                    'notes': notes_by_ticket.get(row['id'], []),
+                }
+            )
 
         return jsonify({'tickets': tickets}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/support/tickets/<int:ticket_id>/notes', methods=['POST'])
+def add_ticket_note(ticket_id):
+    """Support agent/admin: add a note to a ticket."""
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if token.startswith('Bearer '):
+        token = token[7:]
+
+    current_user = verify_token(token)
+    if not current_user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    # Only support and admin can add notes
+    if current_user['role'] not in ['support_agent', 'admin']:
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        data = request.get_json() or {}
+        note_text = (data.get('note') or '').strip()
+        if not note_text:
+            return jsonify({'error': 'Note is required'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM support_tickets WHERE id = ?", (ticket_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        cursor.execute(
+            """
+            INSERT INTO ticket_notes (ticket_id, user_id, note)
+            VALUES (?, ?, ?)
+            """,
+            (ticket_id, current_user['user_id'], note_text),
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'message': 'Note added successfully'}), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/support/tickets/<int:ticket_id>/status', methods=['PUT'])
+def update_ticket_status(ticket_id):
+    """Support agent/admin: update ticket status."""
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if token.startswith('Bearer '):
+        token = token[7:]
+
+    current_user = verify_token(token)
+    if not current_user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if not check_rbac_permission(current_user['role'], 'manage_tickets'):
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        data = request.get_json() or {}
+        new_status = data.get('status')
+
+        if new_status not in ['open', 'in_progress', 'resolved']:
+            return jsonify({'error': 'Invalid status'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM support_tickets WHERE id = ?", (ticket_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        cursor.execute(
+            """
+            UPDATE support_tickets
+            SET status = ?, assigned_to = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (new_status, current_user['user_id'], ticket_id),
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'message': 'Ticket status updated successfully'}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
