@@ -7,8 +7,7 @@ from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 import jwt
 import os
-import re
-import redis
+import re, redis
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
