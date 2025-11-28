@@ -3,6 +3,7 @@
 ---
 
 ## **Project Overview**
+Done By Ihab Faour, Tia El khoury, and ELias El Khoury
 
 This project is a **Secure Banking System** designed to provide various banking features, including user authentication, role-based access control (RBAC), account management, transactions, audit logs, and support ticket management. The goal is to build a highly secure, scalable, and modular banking system capable of handling typical banking operations while ensuring top-tier security to prevent common vulnerabilities such as SQL injection, XSS, broken access control, and more.
 
